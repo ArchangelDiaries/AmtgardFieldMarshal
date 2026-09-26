@@ -1,0 +1,7 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": ["firebase.json", "firestore.rules", "README.md", "field-marshal-backup.json", "**/.*"]
+  },
+  "firestore": { "rules": "firestore.rules" }
+}

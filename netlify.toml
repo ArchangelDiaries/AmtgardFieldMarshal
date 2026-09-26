@@ -1,0 +1,9 @@
+# Field Marshal is a static site plus one function (/ork-api) that talks to the ORK with the site's API key.
+# Deploy from Git (or `netlify deploy`), not drag-and-drop: Netlify Drop doesn't deploy functions.
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[build.environment]
+  # Firebase web config in config.js is public by design; the ORK key lives only in the function.
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"

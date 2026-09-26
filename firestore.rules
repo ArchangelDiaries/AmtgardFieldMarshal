@@ -1,0 +1,55 @@
+rules_version = '2';
+// Field Marshal security rules.
+// Anyone can view tournaments, pits, brackets and standings.
+// Only people listed in the "marshals" collection can change them.
+// Players without an account can send a signup request while a tournament's signups are open.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null
+        && request.auth.token.email_verified == true;
+    }
+    function myEmail() { return request.auth.token.email.lower(); }
+    function isMarshal() {
+      return signedIn() && exists(/databases/$(database)/documents/marshals/$(myEmail()));
+    }
+    function validRequest(d) {
+      return d.keys().hasOnly(['tid', 'name', 'park', 'orkId', 'divs', 'at'])
+        && d.keys().hasAll(['tid', 'name', 'divs', 'at'])
+        && d.tid is string
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && (!('park' in d) || (d.park is string && d.park.size() <= 60))
+        && (!('orkId' in d) || d.orkId == null || (d.orkId is string && d.orkId.size() <= 12))
+        && d.divs is list && d.divs.size() > 0 && d.divs.size() <= 5
+        && d.divs.hasOnly(['single', 'board', 'flo', 'heavy', 'open'])
+        && d.at is number
+        && exists(/databases/$(database)/documents/tournaments/$(d.tid))
+        && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('signupsOpen', true) == true;
+    }
+
+    match /tournaments/{id} { allow read: if true; allow write: if isMarshal(); }
+    match /fighters/{id}    { allow read: if true; allow write: if isMarshal(); }
+    match /signups/{id}     { allow read: if true; allow write: if isMarshal(); }
+    match /divisions/{id}   { allow read: if true; allow write: if isMarshal(); }
+    match /bouts/{id}       { allow read: if true; allow write: if isMarshal(); }
+    match /tallies/{id}     { allow read: if true; allow write: if isMarshal(); }
+    match /ork/{id}         { allow read: if true; allow write: if isMarshal(); }
+    match /results/{id}     { allow read: if true; allow write: if isMarshal(); }
+
+    // Award recommendations stay private to marshals.
+    match /recs/{id} { allow read, write: if isMarshal(); }
+
+    // Each signed-in person may check their own marshal entry; marshals manage the list.
+    match /marshals/{mail} {
+      allow get: if signedIn() && myEmail() == mail;
+      allow read, write: if isMarshal();
+    }
+
+    // Player signup requests.
+    match /requests/{id} {
+      allow create: if validRequest(request.resource.data);
+      allow read, update, delete: if isMarshal();
+    }
+  }
+}

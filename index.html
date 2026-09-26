@@ -1,0 +1,1402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Field Marshal: a digital combat scribe for Amtgard tournament management.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M16 2 30 16 16 30 2 16z%22 fill=%22%23B07F0C%22/%3E%3C/svg%3E">
+<title>Field Marshal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:wght@400;500;700;800&display=swap">
+<style>
+:root{
+  --bg:#ECEFF3; --panel:#FFFFFF; --panel2:#F5F7FA; --ink:#141C28; --muted:#5A6576; --line:#D3D9E1;
+  --btn:#141C28; --btn-ink:#FFFFFF;
+  --or:#B07F0C; --or-soft:#F6EBCB; --argentm:#8C99AA; --bronze:#9A5B2E;
+  --t-single:#7D8A9C; --t-board:#2456B8; --t-flo:#1C7549; --t-heavy:#B3261E; --t-open:#6B3FA0;
+  --good:#1C7549; --warn:#B3261E;
+  --chart:#2456B8; --chart-hi:#163A86;
+  --display:"Alegreya SC", "Palatino Linotype", Georgia, serif;
+  --body:"Alegreya Sans", "Gill Sans", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0E131A; --panel:#161E29; --panel2:#1B2531; --ink:#E7EBF1; --muted:#95A1B2; --line:#2A3544;
+    --btn:#E7EBF1; --btn-ink:#0E131A;
+    --or:#E3B43E; --or-soft:#3A3016; --argentm:#B4BFCD; --bronze:#D08A57;
+    --t-single:#AEB9C8; --t-board:#6B97EE; --t-flo:#45B97F; --t-heavy:#E65E52; --t-open:#A781DE;
+    --good:#45B97F; --warn:#E65E52;
+    --chart:#6B97EE; --chart-hi:#A9C3F6;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0E131A; --panel:#161E29; --panel2:#1B2531; --ink:#E7EBF1; --muted:#95A1B2; --line:#2A3544;
+  --btn:#E7EBF1; --btn-ink:#0E131A;
+  --or:#E3B43E; --or-soft:#3A3016; --argentm:#B4BFCD; --bronze:#D08A57;
+  --t-single:#AEB9C8; --t-board:#6B97EE; --t-flo:#45B97F; --t-heavy:#E65E52; --t-open:#A781DE;
+  --good:#45B97F; --warn:#E65E52;
+  --chart:#6B97EE; --chart-hi:#A9C3F6;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;padding:0 16px 48px}
+.wrap{max-width:1180px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);font-weight:700;line-height:1.1;text-wrap:balance;margin:0}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.eyebrow{font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-block:22px 16px;border-bottom:2px solid var(--ink)}
+.brand h1{font-size:clamp(1.7rem,4vw,2.4rem);letter-spacing:.01em}
+.brand .eyebrow{margin-bottom:4px}
+.brand .tag{margin:6px 0 0;color:var(--muted);font-style:italic;font-size:1rem}
+.tpick{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tpick{max-width:100%;min-width:0}
+.tpick select{flex:1 1 auto;min-width:0;max-width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-weight:700}
+.btn{border:1px solid var(--btn);background:var(--btn);color:var(--btn-ink);padding:9px 14px;border-radius:8px;font-weight:700;display:inline-flex;align-items:center;gap:6px}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--ink)}
+.btn.danger{background:transparent;color:var(--warn);border-color:var(--warn)}
+.btn.danger.armed{background:var(--warn);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.sm{padding:5px 10px;font-size:.88rem}
+
+.tmeta{display:flex;flex-wrap:wrap;gap:6px 18px;padding-block:12px;color:var(--muted);font-size:.95rem}
+.tmeta b{color:var(--ink)}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:22px;overflow-x:auto}
+.tabs button{background:none;border:none;border-bottom:3px solid transparent;padding:10px 14px 9px;font-family:var(--display);font-weight:700;font-size:1.08rem;color:var(--muted);white-space:nowrap}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--or)}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.panel h2{font-size:1.3rem;margin-bottom:12px}
+.stack{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+.panel,.side{min-width:0}
+
+/* forms */
+.form{display:grid;gap:14px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.field{display:grid;gap:4px;flex:1 1 180px;min-width:0}
+.field label,.lbl{font-size:.8rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);width:100%}
+.checks{display:flex;flex-wrap:wrap;gap:8px}
+.checks label{display:inline-flex;align-items:center;gap:7px;padding:7px 12px 7px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);font-weight:500;cursor:pointer}
+.checks input{accent-color:var(--or)}
+.sw{width:11px;height:11px;border-radius:2px;background:var(--tc);display:inline-block;flex:none;transform:rotate(45deg)}
+
+/* signups */
+.counts{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.count{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);font-size:.92rem}
+.count b{font-size:1.1rem}
+.su{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 0;border-top:1px solid var(--line)}
+.su:first-child{border-top:none}
+.su .who{flex:1 1 180px;min-width:0}
+.su .who b{display:block}
+.su .who small{color:var(--muted)}
+.orkl{color:var(--t-board);font-weight:700;text-decoration:none;white-space:nowrap}
+.orkl:hover{text-decoration:underline}
+.tally{display:grid}
+.trow{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.trow:first-child{border-top:none}
+.trow .who{flex:1;min-width:0}
+.trow .who b{display:block;overflow-wrap:anywhere}
+.trow .who small{color:var(--muted)}
+.step{display:flex;align-items:center;gap:6px}
+.step input{width:5ch;text-align:center;padding:8px 4px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-weight:800;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.step .btn{min-width:42px;min-height:40px;justify-content:center;font-size:1.15rem}
+.modebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.linkish{background:none;border:none;padding:0;font:inherit;font-weight:700;color:inherit;text-align:left;cursor:pointer}
+.linkish:hover{text-decoration:underline}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:14px 0}
+.tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.tile .l{font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tile .v{font-weight:800;font-size:1.6rem;font-variant-numeric:tabular-nums;line-height:1.15}
+.tile small{color:var(--muted);display:block;overflow-wrap:anywhere}
+.plgrid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:820px){.plgrid{grid-template-columns:minmax(0,1fr)}}
+.plist input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.plist ul{list-style:none;margin:10px 0 0;padding:0;max-height:560px;overflow:auto;display:grid;gap:2px}
+@media (max-width:820px){.plist ul{max-height:240px}}
+.pbtn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;background:none;border:1px solid transparent;border-radius:7px;padding:7px 9px}
+.pbtn:hover{border-color:var(--line)}
+.pbtn.on{background:var(--or-soft);border-color:var(--or)}
+.pbtn small{color:var(--muted);white-space:nowrap}
+.rchip{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;font-size:.85rem;margin:2px 4px 2px 0;white-space:nowrap}
+.chartbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:8px}
+.chartbar h3{font-size:1.05rem}
+.chart{display:block;overflow:visible}
+.cgrid{stroke:var(--line);stroke-width:1}
+.caxis{stroke:var(--muted);stroke-width:1}
+.ctick,.cx2{fill:var(--muted);font:11px var(--body)}
+.cx{fill:var(--ink);font:600 11px var(--body)}
+.cval{fill:var(--ink);font:700 12px var(--body)}
+.cbar path{fill:var(--chart)}
+.cbar .chit{fill:transparent}
+.cbar:hover path,.cbar:focus path{fill:var(--chart-hi)}
+.cbar:focus{outline:none}
+.cbar:focus-visible .chit{stroke:var(--or);stroke-width:2}
+#ctip{position:fixed;z-index:6;pointer-events:none;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;box-shadow:0 6px 20px rgba(0,0,0,.18);font-size:.88rem;max-width:260px;white-space:pre-line}
+h2 .sub{font-family:var(--body);font-weight:500;font-size:.95rem;color:var(--muted)}
+.badge{display:inline-block;margin-left:6px;min-width:1.5em;padding:0 6px;border-radius:999px;background:var(--or);color:#fff;font-family:var(--body);font-size:.75rem;line-height:1.5em;vertical-align:2px}
+.pill{display:inline-block;border:1px solid var(--or);background:var(--or-soft);color:var(--ink);border-radius:999px;padding:0 8px;font-size:.72rem;font-weight:800;letter-spacing:.03em;vertical-align:2px;cursor:pointer}
+.st{display:inline-block;border-radius:6px;padding:2px 8px;font-size:.8rem;font-weight:800;white-space:nowrap}
+.st.rec{background:var(--or-soft);color:var(--ink);border:1px solid var(--or)}
+.st.unk{border:1px dashed var(--muted);color:var(--muted)}
+.st.met{color:var(--muted);border:1px solid var(--line)}
+.st.done{color:var(--good);border:1px solid var(--good)}
+.ev{margin:0;padding-left:1.1em;font-size:.9rem}
+.lvl{font-family:var(--display);font-weight:800;font-size:1.25rem}
+.acts{display:flex;flex-wrap:wrap;gap:6px}
+a.btn{text-decoration:none}
+.rtext{margin-top:6px;font-size:.85rem}
+.rtext summary{cursor:pointer;color:var(--muted)}
+.rtext textarea{width:100%;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);font:inherit;font-size:.85rem;resize:vertical}
+.btn.sm.on{background:var(--btn);color:var(--btn-ink)}
+.match-note{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);font-size:.95rem}
+.match-note .ok{color:var(--good);font-weight:700}
+.togs{display:flex;flex-wrap:wrap;gap:6px}
+.tog{border:1px solid var(--line);background:transparent;border-radius:6px;padding:4px 9px;font-size:.85rem;font-weight:700;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.tog .sw{opacity:.35}
+.tog.on{border-color:var(--tc);color:var(--ink);background:color-mix(in srgb,var(--tc) 14%,transparent)}
+.tog.on .sw{opacity:1}
+
+/* division chips */
+.dchips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.dchip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-weight:700}
+.dchip small{font-weight:500;color:var(--muted)}
+.dchip.on{border-color:var(--tc);box-shadow:inset 0 0 0 1px var(--tc);background:color-mix(in srgb,var(--tc) 12%,var(--panel))}
+
+/* pit */
+.pitgrid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:880px){.pitgrid{grid-template-columns:minmax(0,1fr)}}
+.divhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.divhead h2{margin:0;display:flex;align-items:center;gap:10px}
+.divhead h2 .sw{width:14px;height:14px}
+.timer{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.clock{font-family:var(--body);font-weight:800;font-size:2rem;font-variant-numeric:tabular-nums;letter-spacing:.02em;min-width:5ch}
+.clock.done{color:var(--warn)}
+.clock.run{color:var(--good)}
+.bout{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch}
+.slot{border:2px dashed var(--line);border-radius:10px;padding:12px;min-height:84px;display:grid;align-content:center;gap:2px;background:var(--panel2);text-align:left}
+.slot.filled{border-style:solid;border-color:var(--ink);background:var(--panel)}
+.slot.hill{border-color:var(--or);background:var(--or-soft)}
+.slot .lbl{font-size:.72rem}
+.slot b{font-size:1.15rem;line-height:1.2;overflow-wrap:anywhere}
+.slot small{color:var(--muted)}
+.vs{align-self:center;font-family:var(--display);font-weight:800;color:var(--muted)}
+.wins{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.wins .btn{justify-content:center;padding:14px 10px;font-size:1.02rem;min-width:0;overflow-wrap:anywhere;text-align:center}
+.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:16px}
+.fbtn{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:9px 10px;text-align:left;display:grid;gap:1px;min-width:0}
+.fbtn b{overflow-wrap:anywhere}
+.fbtn small{color:var(--muted);font-variant-numeric:tabular-nums}
+.fbtn:hover{border-color:var(--ink)}
+.fbtn.sel{border-color:var(--or);background:var(--or-soft)}
+.banner{padding:12px 14px;border-radius:10px;background:var(--or-soft);border:1px solid var(--or);display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}
+th{font-size:.75rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.top4 td:first-child{box-shadow:inset 3px 0 0 var(--or)}
+.scroll{overflow-x:auto}
+.log{list-style:none;margin:0;padding:0;display:grid}
+.log li{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:.95rem}
+.log li:first-child{border-top:none}
+.log .ix{color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.4ch}
+.log .txt{flex:1;min-width:0}
+.log .stk{font-size:.8rem;font-weight:800;color:var(--or)}
+
+/* brackets */
+.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:18px}
+.bcard{border-top:4px solid var(--tc)}
+.bcard h2{display:flex;align-items:center;gap:9px;font-size:1.2rem}
+.tree{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.match{display:grid;gap:4px}
+.match .lbl{font-size:.7rem}
+.mrow{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:7px;padding:7px 9px;background:var(--panel2);text-align:left;min-width:0;width:100%}
+.mrow .sd{font-size:.72rem;font-weight:800;color:var(--muted);min-width:1.4ch}
+.mrow .nm{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:500}
+.mrow.win{border-color:var(--good);background:color-mix(in srgb,var(--good) 13%,var(--panel))}
+.mrow.win .nm{font-weight:800}
+.mrow.lose{opacity:.55}
+.mrow.ph{border-style:dashed;color:var(--muted);cursor:default;background:transparent}
+.mrow:disabled{cursor:default}
+.etree{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,1fr);gap:14px;overflow-x:auto;margin-top:12px;padding-bottom:4px}
+.ecol{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ecolm{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:10px}
+.ematch{display:grid;gap:4px}
+.ematch.bye{opacity:.75}
+.fmtopt{display:grid;gap:8px}
+.fmtopt label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);cursor:pointer}
+.fmtopt label:has(input:checked){border-color:var(--or);background:var(--or-soft)}
+.fmtopt small{display:block;color:var(--muted)}
+.podium{display:grid;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.pl{display:flex;align-items:center;gap:10px}
+.medal{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.8rem;color:#fff;flex:none}
+.m1{background:var(--or)} .m2{background:var(--argentm)} .m3{background:var(--bronze)}
+.pl .nm{flex:1;min-width:0;overflow-wrap:anywhere}
+.pl .pts{font-weight:800;font-variant-numeric:tabular-nums}
+.seeds{display:grid;gap:6px;margin-top:10px}
+.seeds select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2)}
+
+/* leaderboard */
+.boardgrid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+@media (max-width:900px){.boardgrid{grid-template-columns:minmax(0,1fr)}}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:none;background:var(--panel);padding:7px 12px;font-weight:700;color:var(--muted)}
+.seg button.on{background:var(--btn);color:var(--btn-ink)}
+.controls select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.controls label{display:inline-flex;align-items:center;gap:6px;font-weight:500}
+.rank{font-family:var(--display);font-weight:800;font-size:1.1rem;width:2.2ch}
+tr.r1 .rank{color:var(--or)}
+.pips{display:inline-flex;gap:3px;flex-wrap:wrap;vertical-align:middle}
+.pip{display:inline-block;vertical-align:middle;margin-right:2px}
+.pip{width:10px;height:10px;border-radius:50%}
+.total{font-weight:800;font-size:1.1rem}
+.fp small{display:block;color:var(--muted);font-size:.82rem}
+.side{display:grid;gap:14px}
+.side .panel{padding:14px 16px}
+.side h3{font-size:1.05rem;margin-bottom:8px}
+.sl{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.sl li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}
+.big{font-family:var(--body);font-weight:800;font-size:1.5rem;font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right;line-height:1}
+.sl .d{font-size:.84rem;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.live{font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--good);border:1px solid var(--good);border-radius:4px;padding:0 4px}
+.foot{margin-top:12px;font-size:.88rem;color:var(--muted)}
+
+.empty{text-align:center;padding:48px 16px}
+.empty h2{font-size:1.6rem;margin-bottom:8px}
+.empty p{max-width:52ch;margin:0 auto 18px;color:var(--muted)}
+.none{color:var(--muted);font-style:italic;padding:6px 0}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--btn);color:var(--btn-ink);padding:10px 16px;border-radius:8px;font-weight:700;max-width:calc(100% - 32px);box-shadow:0 6px 24px rgba(0,0,0,.25);z-index:5}
+@media (max-width:520px){
+  .bout{grid-template-columns:1fr}
+  .vs{justify-self:center}
+  .tree{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:no-preference){ .clock.done{animation:blink 1s steps(2) infinite} @keyframes blink{50%{opacity:.35}} }
+</style>
+
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+body:not(.marshal) .m-only{display:none!important}
+body.marshal .p-only{display:none!important}
+.auth{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.9rem;color:var(--muted)}
+.auth b{color:var(--ink)}
+.mlist{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}
+.mlist li{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line)}
+.mlist li:first-child{border-top:none}
+.req{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.req:first-of-type{border-top:none}
+.req .who{flex:1 1 200px;min-width:0}
+.req .who small{display:block;color:var(--muted)}
+.hits{display:grid;gap:6px;width:100%}
+.hit{display:flex;justify-content:space-between;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 10px}
+.hit small{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="eyebrow">Principality of Stone Rivers · Kingdom of Westmarch</div>
+      <h1>Field Marshal</h1>
+      <p class="tag">A Digital Combat Scribe for Tournament Management</p>
+    </div>
+    <div class="tpick">
+      <select id="tpick" aria-label="Tournament"></select>
+      <button class="btn m-only" data-act="newT">New tournament</button>
+      <div class="auth" id="auth"></div>
+    </div>
+  </header>
+
+  <section id="newT" class="panel" hidden style="margin-top:18px">
+    <h2>New tournament</h2>
+    <form id="tForm" class="form">
+      <div class="row">
+        <div class="field" style="flex-basis:260px"><label for="tName">Name</label><input id="tName" required placeholder="Midreign Tourney"></div>
+        <div class="field"><label for="tFormat">Format</label><select id="tFormat"><option value="pit">Pool and Bracket</option><option value="elim">Bracket</option></select></div>
+        <div class="field"><label for="tDate">Date</label><input id="tDate" type="date" required></div>
+        <div class="field"><label for="tPark">Hosting park</label><input id="tPark" list="parks" value="Siar Geata"></div>
+        <div class="field"><label for="tLevel">Tournament level</label><select id="tLevel"><option value="shire">Shire</option><option value="barony">Barony</option><option value="duchy" selected>Duchy</option><option value="kingdom">Kingdom</option><option value="major">Major kingdom (Weaponmaster, Warmaster, Olympiad)</option></select></div>
+        <div class="field" id="tMinField" style="flex-basis:120px"><label for="tMin">Pit length (min)</label><input id="tMin" type="number" min="1" max="120" value="10"></div>
+      </div>
+      <p class="foot" id="tFormatHelp" style="margin:0">Pool and Bracket: each division fights a timed winner-stays pit, then the top 4 fight a bracket.</p>
+      <div><div class="lbl" style="margin-bottom:6px">Divisions</div><div class="checks" id="tDivs"></div></div>
+      <div class="row"><button class="btn" type="submit">Create tournament</button><button class="btn ghost" type="button" data-act="newT">Cancel</button></div>
+    </form>
+  </section>
+
+  <div id="tmeta" class="tmeta"></div>
+  <nav class="tabs" id="tabs" hidden>
+    <button data-act="tab" data-tab="signups">Signups</button>
+    <button data-act="tab" data-tab="pits">Pits</button>
+    <button data-act="tab" data-tab="brackets">Brackets</button>
+    <button data-act="tab" data-tab="board">Leaderboard</button>
+    <button data-act="tab" data-tab="players">Players</button>
+    <button data-act="tab" data-tab="parks">Parks</button>
+    <button class="m-only" data-act="tab" data-tab="awards">Awards<span id="recCount" class="badge" hidden></span></button>
+  </nav>
+
+  <div id="empty" class="empty" hidden></div>
+
+  <section id="tab-signups" hidden>
+    <div class="stack">
+      <div class="panel m-only" id="reqPanel"><div id="reqList"></div></div>
+      <div class="panel m-only">
+        <h2>Sign up a fighter</h2>
+        <form id="suForm" class="form">
+          <div class="row">
+            <div class="field" style="flex-basis:240px"><label for="suName">Persona name</label><input id="suName" list="fighterNames" autocomplete="off" required placeholder="Sir Brannoc of the Hollow"></div>
+            <div class="field"><label for="suPark">Park</label><input id="suPark" list="parks" autocomplete="off"></div>
+            <div class="field"><label for="suOrk">ORK profile link or ID</label><input id="suOrk" autocomplete="off" inputmode="url" placeholder="ork.amtgard.com/…/Player/index/23614"></div>
+          </div>
+          <div class="row"><button class="btn sm ghost" type="button" data-act="orkfind" data-form="su">Search the ORK for this persona</button></div>
+          <div id="suMatch" class="match-note" hidden></div>
+          <div><div class="lbl" style="margin-bottom:6px">Divisions</div><div class="checks" id="suDivs"></div></div>
+          <div class="row"><button class="btn" type="submit">Add to the lists</button></div>
+        </form>
+      </div>
+      <div class="panel p-only" id="rqPanel">
+        <h2>Sign up to fight</h2>
+        <div id="rqClosed" class="none" hidden>Signups for this tournament are closed. See a marshal at the field.</div>
+        <form id="rqForm" class="form">
+          <div class="row">
+            <div class="field" style="flex-basis:240px"><label for="rqName">Your persona</label><input id="rqName" autocomplete="off" required placeholder="Your Amtgard name"></div>
+            <div class="field"><label for="rqPark">Home park</label><input id="rqPark" list="parks" autocomplete="off"></div>
+          </div>
+          <div class="row"><button class="btn sm ghost" type="button" data-act="orkfind" data-form="rq">Find me in the ORK</button>
+            <div class="field" style="flex-basis:220px"><label for="rqOrk">…or paste your ORK profile link</label><input id="rqOrk" autocomplete="off" inputmode="url"></div></div>
+          <div id="rqMatch" class="match-note" hidden></div>
+          <div><div class="lbl" style="margin-bottom:6px">Divisions you want to fight</div><div class="checks" id="rqDivs"></div></div>
+          <div class="row"><button class="btn" type="submit">Send my signup</button></div>
+          <p class="foot" style="margin:0">A marshal confirms each signup at check-in. Your ORK profile links your results to your Warrior award record.</p>
+        </form>
+      </div>
+      <div class="panel"><div id="suList"></div></div>
+      <div class="panel m-only" id="tSettings"></div>
+      <div class="panel m-only" id="appSettings"></div>
+    </div>
+  </section>
+  <section id="tab-pits" hidden><div id="pitView"></div></section>
+  <section id="tab-brackets" hidden><div id="brView"></div></section>
+  <section id="tab-board" hidden><div id="boardView"></div></section>
+  <section id="tab-players" hidden><div id="playerView"></div></section>
+  <section id="tab-parks" hidden><div id="parkView"></div></section>
+  <section id="tab-awards" hidden><div class="panel m-only" id="orkAuth" style="margin-bottom:18px"></div><div id="awardView"></div></section>
+</div>
+<datalist id="parks">
+  <option value="Siar Geata"></option><option value="Anduril"></option><option value="Ashen Grove"></option>
+  <option value="Ethereal Hollow"></option><option value="Quixotic Valley"></option><option value="Emerald Dunes"></option>
+</datalist>
+<datalist id="fighterNames"></datalist>
+<div id="toast" hidden></div>
+<div id="ctip" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script>
+const DIVS=[
+  {k:'single',n:'Single Short',s:'Single'},
+  {k:'board',n:'Sword & Board',s:'S&B'},
+  {k:'flo',n:'Florentine',s:'Flo'},
+  {k:'heavy',n:'Heavy Weapons',s:'Heavy'},
+  {k:'open',n:'Open Class',s:'Open'}];
+const DIV=Object.fromEntries(DIVS.map(d=>[d.k,d]));
+const PLACE_PTS=[5,3,1], PLACE_TXT=['1st','2nd','3rd'];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const S={db:null,ready:false,offline:false,tournaments:[],fighters:{},signups:[],bouts:[],divs:{},tid:null,tab:'signups',div:null,pick:{},
+  board:{scope:'tournament',kills:true,div:'all'},confirm:null,editSeeds:{},formTid:undefined,seen:new Set(),roster:{players:[]},tallies:{},awards:{players:{}},recs:{},results:{},resultsSeen:false,backfilled:new Set(),boutsTid:undefined,boutsReady:false,player:null,copied:{},pq:'',pdiv:'all',pmetric:'pts',park:null};
+try{const t=localStorage.getItem('lists.tab'); if(t) S.tab=t; const b=JSON.parse(localStorage.getItem('lists.board')||'null'); if(b) Object.assign(S.board,b);}catch(e){}
+const saveLocal=()=>{try{localStorage.setItem('lists.tab',S.tab);localStorage.setItem('lists.board',JSON.stringify(S.board));}catch(e){}};
+/* Links with FORK (event management): FORK writes t.fork = {eventId, name, url} on tournaments it creates,
+   and opens a tournament directly with ?t=<tournament id>. */
+const forkLink=t=>{const f=t&&t.fork; if(!f||!f.name) return '';
+  const url=/^https:\/\//.test(f.url||'')?f.url:''; 
+  return `<span>Part of ${url?`<a class="orkl" href="${esc(url)}" target="_blank" rel="noopener">${esc(f.name)}</a>`:`<b>${esc(f.name)}</b>`}</span>`;};
+let deepT=null; try{const q=new URLSearchParams(location.search); deepT=q.get('t');
+  const tb=q.get('tab'); if(['signups','pits','brackets','board','players','parks','awards'].includes(tb)) S.tab=tb;}catch(e){}
+const setUrlT=tid=>{try{const u=new URL(location.href); if(tid) u.searchParams.set('t',tid); else u.searchParams.delete('t'); history.replaceState(null,'',u);}catch(e){}};
+
+const T=()=>S.tournaments.find(t=>t.id===S.tid);
+const tByid=id=>S.tournaments.find(t=>t.id===id);
+const offered=(t=T())=>DIVS.filter(d=>!t||!t.divs||t.divs.includes(d.k));
+const histName=id=>{for(const r of Object.values(S.results||{})){const f=r.fighters&&r.fighters[id];if(f&&f.n)return f.n;}return '';};
+const fname=id=>S.fighters[id]?.name||histName(id)||'Unknown fighter';
+const fpark=id=>S.fighters[id]?.park||'';
+const divDoc=(tid,d)=>S.divs[tid+'__'+d];
+const signupsFor=tid=>S.signups.filter(s=>s.tid===tid);
+const inDiv=(tid,d)=>signupsFor(tid).filter(s=>(s.divs||[]).includes(d)).map(s=>s.fid).sort((a,b)=>fname(a).localeCompare(fname(b)));
+const boutsFor=(tid,d)=>S.bouts.filter(b=>b.tid===tid&&(!d||b.div===d));
+const tc=k=>`--tc:var(--t-${k})`;
+const sw=k=>`<span class="sw" style="${tc(k)}"></span>`;
+const ORK_URL=id=>'https://ork.amtgard.com/orkui/index.php?Route=Player/index/'+encodeURIComponent(id);
+const parseOrk=s=>{const m=String(s||'').match(/(\d{2,9})(?!.*\d)/);return m?m[1]:'';};
+const orkLink=id=>id?`<a class="orkl" href="${ORK_URL(id)}" target="_blank" rel="noopener">ORK #${esc(id)}</a>`:'';
+const fork=id=>S.fighters[id]?.orkId||'';
+const fmt=ms=>{const s=Math.ceil(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+
+let toastT;
+function toast(msg){const el=$('#toast');el.textContent=msg;el.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>el.hidden=true,2600);}
+async function w(fn){
+  if(!S.db){toast('The shared tournament store isn’t available in this view.');return false;}
+  try{await fn();if(S.tid)scheduleSummary(S.tid);return true;}catch(e){
+    console.error(e);
+    const c=e&&e.code;
+    toast((c==='quota_exceeded'||c==='resource-exhausted')?'Storage is full. Delete an old tournament to make room.':
+          (c==='invalid_argument'||c==='permission-denied')?'Sign in as a marshal to change the lists.':
+          'Couldn’t save that. Check your connection and try again.');
+    return false;}
+}
+function arm(key){ if(S.confirm===key){S.confirm=null;return true;} S.confirm=key; render(); setTimeout(()=>{if(S.confirm===key){S.confirm=null;render();}},4000); return false; }
+
+/* ---------- derived data ---------- */
+const isTally=(tid,d)=>divDoc(tid,d)?.mode==='tally';
+const tallyN=(tid,d,f)=>Number(S.tallies[tid+'__'+d+'__'+f]?.n)||0;
+function pitStats(tid,d,bl){
+  const st={}; const g=id=>st[id]||(st[id]={id,k:0,d:0,cur:0,best:0});
+  inDiv(tid,d).forEach(g);
+  if(isTally(tid,d)) Object.values(S.tallies).forEach(t=>{if(t.tid===tid&&t.div===d&&(Number(t.n)||st[t.fid])) g(t.fid).k=Number(t.n)||0;});
+  else (bl||boutsFor(tid,d)).forEach(b=>{const W=g(b.w),L=g(b.l);W.k++;W.cur++;W.best=Math.max(W.best,W.cur);L.d++;L.cur=0;});
+  const arr=Object.values(st).sort((a,b)=>b.k-a.k||b.best-a.best||a.d-b.d||fname(a.id).localeCompare(fname(b.id)));
+  return {map:st,arr};
+}
+function bracket(tid,d){
+  const b=divDoc(tid,d)?.bracket; if(!b||!b.seeds) return null;
+  const s=b.seeds, W=b.w||{};
+  const m=(id,p1,p2)=>{let win=null,lose=null,state;
+    if(p1==='?'||p2==='?') state='wait';
+    else if(p1&&p2){ if(W[id]&&(W[id]===p1||W[id]===p2)){win=W[id];lose=win===p1?p2:p1;state='done';} else state='live'; }
+    else if(p1||p2){win=p1||p2;state='bye';} else state='empty';
+    return {id,p1,p2,win,lose,state,nextW:win||(state==='empty'?null:'?'),nextL:lose||((state==='bye'||state==='empty')?null:'?')};};
+  const s1=m('s1',s[0]||null,s[3]||null), s2=m('s2',s[1]||null,s[2]||null);
+  return {seeds:s,s1,s2,f:m('f',s1.nextW,s2.nextW),t:m('t',s1.nextL,s2.nextL)};
+}
+function places(tid,d){if(isElimT(tid)) return elimPlaces(tid,d); const B=bracket(tid,d); if(!B) return [null,null,null]; return [B.f.win,B.f.lose,B.t.win];}
+function timerOf(tid,d){
+  const t=tByid(tid); const len=(Number(t?.pitMin)||10)*60000; const tm=divDoc(tid,d)?.timer;
+  if(!tm) return {ms:len,running:false,len};
+  if(tm.running) return {ms:Math.max(0,tm.endsAt-Date.now()),running:true,len};
+  return {ms:tm.remain??len,running:false,len};
+}
+function tally(){
+  const sc=S.board.scope, df=S.board.div;
+  if(sc==='season') return tallySeason(df);
+  const tids=[S.tid];
+  const R={}; const g=id=>R[id]||(R[id]={id,k:0,d:0,m:[0,0,0],pp:0});
+  if(sc!=='season') signupsFor(S.tid).forEach(s=>{if(df==='all'||(s.divs||[]).includes(df)) g(s.fid)});
+  S.bouts.forEach(b=>{if(!tids.includes(b.tid)||(df!=='all'&&b.div!==df)||isTally(b.tid,b.div))return; g(b.w).k++; g(b.l).d++;});
+  Object.values(S.tallies).forEach(t=>{const n=Number(t.n)||0; if(n&&tids.includes(t.tid)&&(df==='all'||t.div===df)&&isTally(t.tid,t.div)) g(t.fid).k+=n;});
+  tids.forEach(tid=>DIVS.forEach(d=>{ if(df!=='all'&&d.k!==df) return;
+    places(tid,d.k).forEach((f,i)=>{if(f){const r=g(f);r.m[i]++;r.pp+=PLACE_PTS[i];}});}));
+  return finishTally(R);
+}
+function finishTally(R){return Object.values(R).map(r=>({...r,total:r.pp+(S.board.kills?r.k:0)}))
+    .sort((a,b)=>b.total-a.total||b.pp-a.pp||b.k-a.k||fname(a.id).localeCompare(fname(b.id)));}
+function tallySeason(df){const R={}; const g=id=>R[id]||(R[id]={id,k:0,d:0,m:[0,0,0],pp:0});
+  summaries().forEach(sm=>Object.entries(sm.divs||{}).forEach(([dk,dv])=>{if(df!=='all'&&dk!==df)return;
+    Object.entries(dv.rows||{}).forEach(([f,r])=>{const x=g(f);x.k+=r.k||0;x.d+=r.d||0;if(r.pl>=1&&r.pl<=3){x.m[r.pl-1]++;x.pp+=PLACE_PTS[r.pl-1];}});}));
+  return finishTally(R);}
+function streakSeason(df){const runs=[],pits=[];
+  summaries().forEach(sm=>Object.entries(sm.divs||{}).forEach(([dk,dv])=>{if(df!=='all'&&dk!==df)return;
+    Object.entries(dv.rows||{}).forEach(([f,r])=>{if(!dv.tally&&r.b>=2)runs.push({fid:f,n:r.b,tid:sm.tid,div:dk,season:true});
+      if(r.k>0)pits.push({fid:f,k:r.k,d:dv.tally?null:(r.d||0),tid:sm.tid,div:dk});});}));
+  runs.sort((a,b)=>b.n-a.n); pits.sort((a,b)=>b.k-a.k||(a.d??99)-(b.d??99)); return {runs,pits};}
+function streakData(tids,df){
+  const runs=[],pits=[],groups={};
+  S.bouts.forEach(b=>{if(!tids.includes(b.tid)||(df!=='all'&&b.div!==df)||isTally(b.tid,b.div))return;(groups[b.tid+'|'+b.div]||=[]).push(b);});
+  for(const [key,list] of Object.entries(groups)){
+    const [tid,div]=key.split('|'); const cur={},k={},dd={};
+    list.forEach(b=>{cur[b.w]=(cur[b.w]||0)+1;k[b.w]=(k[b.w]||0)+1;dd[b.l]=(dd[b.l]||0)+1;
+      if((cur[b.l]||0)>=2) runs.push({fid:b.l,n:cur[b.l],tid,div,by:b.w}); cur[b.l]=0;});
+    const seeded=!!divDoc(tid,div)?.bracket?.seeds;
+    Object.entries(cur).forEach(([f,n])=>{if(n>=2) runs.push({fid:f,n,tid,div,live:!seeded,end:seeded});});
+    Object.entries(k).forEach(([f,n])=>pits.push({fid:f,k:n,d:dd[f]||0,tid,div}));
+  }
+  Object.values(S.tallies).forEach(t=>{const n=Number(t.n)||0; if(n&&tids.includes(t.tid)&&(df==='all'||t.div===df)&&isTally(t.tid,t.div)) pits.push({fid:t.fid,k:n,d:null,tid:t.tid,div:t.div});});
+  runs.sort((a,b)=>b.n-a.n); pits.sort((a,b)=>b.k-a.k||a.d-b.d);
+  return {runs,pits};
+}
+
+/* ---------- Warrior awards ---------- */
+const LEVELS=[{k:'shire',n:'Shire'},{k:'barony',n:'Barony'},{k:'duchy',n:'Duchy'},{k:'kingdom',n:'Kingdom'},{k:'major',n:'Major kingdom'}];
+const LEVEL_N=Object.fromEntries(LEVELS.map(l=>[l.k,l.n]));
+const PARK_LEVEL={'Siar Geata':'duchy','Ethereal Hollow':'barony','Anduril':'shire','Ashen Grove':'shire','Quixotic Valley':'shire','Emerald Dunes':'shire'};
+/* Rulebook 8.08 Order of the Warrior standards: level earned by 1st/2nd/3rd at each tournament level */
+const PLACE_LVL={shire:[3,2,1],barony:[5,4,3],duchy:[7,6,5],kingdom:[7,7,6],major:[8,7,6]};
+const tLevel=t=>t?.level||PARK_LEVEL[t?.park]||'shire';
+const warriorOf=fid=>{const o=fork(fid);const a=o&&S.awards.players[o];return a?{w:Number(a.w)||0,date:a.date||''}:null;};
+function recsFor(tid){
+  const t=tByid(tid); if(!t) return []; const lv=tLevel(t), out=[];
+  signupsFor(tid).forEach(su=>{const f=su.fid, ev=[];
+    (su.divs||[]).forEach(d=>{
+      if(isElimT(tid)){const E=elim(tid,d); const b=E?elimRecord(E,f).best:0; if(b>=3) ev.push({lvl:Math.min(10,Math.floor((b-1)/2)),why:`${b} straight bracket wins in ${DIV[d].n}`});}
+      else if(!isTally(tid,d)){const b=pitStats(tid,d).map[f]?.best||0; if(b>=3) ev.push({lvl:Math.min(10,Math.floor((b-1)/2)),why:`${b} straight pit wins in ${DIV[d].n}`});}
+      places(tid,d).forEach((p,i)=>{if(p===f) ev.push({lvl:PLACE_LVL[lv][i],why:`${PLACE_TXT[i]} in ${DIV[d].n} (${LEVEL_N[lv]} tournament)`});});
+    });
+    if(!ev.length) return;
+    ev.sort((a,b)=>b.lvl-a.lvl); const q=ev[0].lvl, cur=warriorOf(f);
+    const state=!cur?'unknown':(q>cur.w?'recommend':'met');
+    out.push({fid:f,q,cur,ev,state,next:cur?Math.min(10,cur.w+1):null});});
+  const ord={recommend:0,unknown:1,met:2};
+  return out.sort((a,b)=>ord[a.state]-ord[b.state]||b.q-a.q||fname(a.fid).localeCompare(fname(b.fid)));
+}
+function recText(r){
+  const t=T(); const lvl=r.state==='recommend'?r.next:r.q;
+  const where=t?`${t.name} (${longDateT(t.date)}${t.park?', '+t.park:''})`:'this tournament';
+  return `Recommended for the Order of the Warrior, ${ordinalN(lvl)} order. At ${where}: ${r.ev.map(e=>e.why).join('; ')}. Qualifies up to ${ordinalN(r.q)} under the Rulebook award standards. Submitted from Field Marshal.`;
+}
+const ordinalN=n=>{const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
+const longDateT=d=>{if(!d)return '';const [y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});};
+function renderAwards(){
+  const t=T(), tid=S.tid, recs=recsFor(tid);
+  const stTxt=r=>{const st=S.recs[tid+'__'+r.fid]?.status;
+    if(st==='submitted') return `<span class="st done">${S.recs[tid+'__'+r.fid]?.via==='ork'?'Sent to ORK':'Submitted'}</span>`; if(st==='dismissed') return '<span class="st met">Dismissed</span>';
+    return r.state==='recommend'?`<span class="st rec">Recommend Warrior ${r.next}</span>`:r.state==='unknown'?'<span class="st unk">Check ORK level</span>':'<span class="st met">Already holds it</span>';};
+  const rows=recs.length?recs.map(r=>{const st=S.recs[tid+'__'+r.fid]?.status;return `<tr><td class="fp"><b>${esc(fname(r.fid))}</b><small>${esc(fpark(r.fid))}${fork(r.fid)?' · '+orkLink(fork(r.fid)):' · No ORK ID'}</small></td>
+    <td>${r.cur?`<span class="lvl">${r.cur.w}</span>${r.cur.date?`<small class="muted" style="display:block">since ${esc(r.cur.date)}</small>`:''}`:'<span class="muted">Unknown</span>'}</td>
+    <td><span class="lvl">${r.q}</span></td>
+    <td><ul class="ev">${r.ev.map(e=>`<li>${esc(e.why)} → level ${e.lvl}</li>`).join('')}</ul>${r.q>=9?'<small class="muted">9th and 10th also need prior major kingdom wins. Review by hand.</small>':''}
+      ${r.state!=='met'?`<details class="rtext" ${S.copied[r.fid]==='fail'?'open':''}><summary>Reason text for the ORK</summary><textarea readonly rows="4" aria-label="Recommendation reason for ${esc(fname(r.fid))}">${esc(recText(r))}</textarea></details>`:''}</td>
+    <td>${stTxt(r)}${r.state!=='met'?`<div class="acts" style="margin-top:6px">${typeof orkSendButton==='function'?orkSendButton(r):''}${fork(r.fid)
+        ?`<a class="btn sm" href="${ORK_URL(fork(r.fid))}" target="_blank" rel="noopener" data-act="orkrec" data-f="${esc(r.fid)}">${S.copied[r.fid]===true?'Reason copied · Open ORK again':'Recommend in ORK'}</a>`
+        :'<span class="muted" style="font-size:.85rem">Add their ORK ID to recommend in the ORK</span>'}<button class="btn sm ghost ${st==='submitted'?'on':''}" data-act="rec" data-f="${esc(r.fid)}" data-v="submitted" data-l="${r.next||r.q}">Submitted</button><button class="btn sm ghost ${st==='dismissed'?'on':''}" data-act="rec" data-f="${esc(r.fid)}" data-v="dismissed">Dismiss</button></div>`:''}</td></tr>`;}).join('')
+    :'<tr><td colspan="5" class="none">No one has earned a Warrior qualification yet this tournament. Streaks of 3+ pit wins and bracket placements show up here.</td></tr>';
+  const all=signupsFor(tid).map(s=>s.fid).sort((a,b)=>(warriorOf(b)?.w??-1)-(warriorOf(a)?.w??-1)||fname(a).localeCompare(fname(b)));
+  const lvlList=all.length?`<div class="scroll"><table><thead><tr><th>Combatant</th><th class="n">Warrior</th><th>Last given</th></tr></thead><tbody>${all.map(f=>{const w=warriorOf(f);return `<tr><td class="fp"><b>${esc(fname(f))}</b><small>${fork(f)?orkLink(fork(f)):'No ORK ID'}</small></td><td class="n">${w?`<b>${w.w}</b>`:'<span class="muted">—</span>'}</td><td>${w?.date?esc(w.date):'<span class="muted">'+(fork(f)?'Not loaded yet':'Add ORK ID')+'</span>'}</td></tr>`;}).join('')}</tbody></table></div>`:'<p class="none">No one signed up yet.</p>';
+  $('#awardView').innerHTML=`<div class="stack"><div class="panel">
+    <div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:10px"><h2 style="margin:0">Order of the Warrior recommendations</h2>
+      <div class="field" style="flex:0 1 220px"><label for="awLevel">This tournament counts as</label><select id="awLevel">${LEVELS.map(l=>`<option value="${l.k}" ${tLevel(t)===l.k?'selected':''}>${l.n}</option>`).join('')}</select></div></div>
+    <div class="scroll"><table><thead><tr><th>Fighter</th><th>Warrior now</th><th>Qualifies for</th><th>Why</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="foot">Based on the Rulebook 8.08 award standards. Consecutive wins: 3 = 1st, 5 = 2nd, 7 = 3rd, and so on (reeve-tally pits don’t track streaks). Placements, by tournament level: Shire 3rd/2nd/1st = 1/2/3 · Barony 3/4/5 · Duchy 5/6/7 · Kingdom 6/7/7 · Major kingdom 6/7/8. Each division is treated as its own tournament. The recommendation is the next level up from what the ORK shows; the monarch decides. <b>Recommend in ORK</b> copies the reason and opens the fighter’s ORK page, where you choose Recommend, pick Order of the Warrior and the level, and paste the reason. Then mark it Submitted here.</p></div>
+    <div class="panel"><h2>Combatants’ Warrior levels</h2>${lvlList}
+    <p class="foot">From ORK profiles${S.awards.updatedAt?', last loaded '+esc(S.awards.updatedAt):''}. Fighters need an ORK ID to be looked up. Levels load automatically for fighters with ORK IDs; use “Refresh Warrior levels” in Field Marshal settings to re-check everyone.</p></div></div>`;
+}
+
+/* ---------- tournament format: single-elimination bracket ---------- */
+/* format 'pit'  = Pool and Bracket: timed winner-stays pit, then top 4 into a bracket (default).
+   format 'elim' = Bracket Tournament: every entrant drawn into one single-elimination bracket.
+   Stored on divisions/{tid}__{div}.elim = {slots:[fid|null…] (power of 2, standard seed order), seeds:{fid:n}, w:{matchId:fid}}. */
+const FORMATS=[{k:'pit',n:'Pool and Bracket',d:'Timed winner-stays pit, then the top 4 fight a bracket'},{k:'elim',n:'Bracket',d:'Every fighter in one single-elimination bracket'}];
+const tFormat=t=>t&&t.format==='elim'?'elim':'pit';
+const isElimT=tid=>tFormat(tByid(tid))==='elim';
+function seedOrder(P){let o=[1];while(o.length<P){const n=o.length*2;o=o.flatMap(x=>[x,n+1-x]);}return o;}
+function matchOf(W,id,p1,p2){let win=null,lose=null,state;
+  if(p1==='?'||p2==='?') state='wait';
+  else if(p1&&p2){if(W[id]&&(W[id]===p1||W[id]===p2)){win=W[id];lose=win===p1?p2:p1;state='done';}else state='live';}
+  else if(p1||p2){win=p1||p2;state='bye';} else state='empty';
+  return {id,p1,p2,win,lose,state,nextW:win||(state==='empty'?null:'?'),nextL:lose||((state==='bye'||state==='empty')?null:'?')};}
+function elim(tid,d){
+  const e=divDoc(tid,d)?.elim; if(!e||!Array.isArray(e.slots)||e.slots.length<2) return null;
+  const W=e.w||{}, P=e.slots.length, R=Math.round(Math.log2(P)); const rounds=[]; let prev=null;
+  for(let r=0;r<R;r++){const ms=[];for(let i=0;i<(P>>(r+1));i++){
+      const p1=r===0?(e.slots[2*i]||null):prev[2*i].nextW, p2=r===0?(e.slots[2*i+1]||null):prev[2*i+1].nextW;
+      ms.push(matchOf(W,`r${r}m${i}`,p1,p2));}
+    rounds.push(ms); prev=ms;}
+  const final=rounds[R-1][0], third=R>=2?matchOf(W,'t',rounds[R-2][0].nextL,rounds[R-2][1].nextL):null;
+  return {P,R,rounds,final,third,seeds:e.seeds||{},slots:e.slots,W};
+}
+function elimPlaces(tid,d){const E=elim(tid,d); if(!E) return [null,null,null]; return [E.final.win,E.final.lose,E.third?E.third.win:null];}
+function elimRecord(E,f){let run=0,best=0,wins=0,losses=0;
+  [...E.rounds.flat(),...(E.third?[E.third]:[])].forEach(M=>{if(M.state!=='done'||(M.p1!==f&&M.p2!==f))return;
+    if(M.win===f){wins++;run++;best=Math.max(best,run);}else{losses++;run=0;}});
+  return {wins,losses,best};}
+function elimDone(E){return !!E&&!!E.final.win&&(!E.third||E.third.state==='empty'||E.third.state==='bye'||!!E.third.win);}
+function elimCard(tid,d){
+  const fs=inDiv(tid,d.k), E=elim(tid,d.k), head=`<h2>${sw(d.k)}${esc(d.n)}</h2>`;
+  if(!E) return `<div class="panel bcard" style="${tc(d.k)}">${head}<p class="muted" style="margin:10px 0">${fs.length<2?'Needs at least two fighters signed up.':`${fs.length} fighters signed up. Drawing places them at random in a single-elimination bracket; any byes go to the top of the draw.`}</p>
+    ${fs.length>=2?`<button class="btn sm" data-act="draw" data-div="${d.k}">Draw bracket</button>`:''}</div>`;
+  const rname=r=>{const left=E.R-r;return left===1?'Final':left===2?'Semifinals':left===3?'Quarterfinals':`Round ${r+1}`;};
+  const row=(M,p,ph)=>{
+    if(p==='?') return `<div class="mrow ph"><span class="nm">${ph}</span></div>`;
+    if(!p) return `<div class="mrow ph"><span class="nm">Bye</span></div>`;
+    const cls=M.win===p?'win':(M.lose===p?'lose':''), can=M.state==='live'||M.state==='done';
+    return `<button class="mrow ${cls}" data-act="ewin" data-div="${d.k}" data-m="${M.id}" data-f="${esc(p)}" ${can?'':'disabled'}><span class="sd">${E.seeds[p]||''}</span><span class="nm">${esc(fname(p))}</span></button>`;};
+  const cols=E.rounds.map((ms,r)=>`<div class="ecol"><span class="lbl">${rname(r)}</span><div class="ecolm">${ms.map(M=>`<div class="ematch ${M.state==='bye'?'bye':''}">${row(M,M.p1,'Winner of previous match')}${row(M,M.p2,'Winner of previous match')}</div>`).join('')}</div></div>`).join('');
+  const third=E.third&&E.third.state!=='empty'?`<div class="match" style="max-width:260px;margin-top:14px"><span class="lbl">Third place</span>${row(E.third,E.third.p1,'Semifinal loser')}${row(E.third,E.third.p2,'Semifinal loser')}</div>`:'';
+  const pl=elimPlaces(tid,d.k);
+  const podium=`<div class="podium">${pl.map((f,i)=>`<div class="pl"><span class="medal m${i+1}">${i+1}</span><span class="nm">${f?esc(fname(f)):'<span class="muted">To be decided</span>'}</span><span class="pts">${f?'+'+PLACE_PTS[i]:''}</span></div>`).join('')}</div>`;
+  const inB=new Set(E.slots.filter(Boolean)), late=fs.filter(f=>!inB.has(f)).length, picked=Object.values(E.W).some(Boolean), k='redraw:'+d.k;
+  return `<div class="panel bcard" style="${tc(d.k)}">${head}
+    <div class="etree">${cols}</div>${third}${podium}
+    ${late?`<p class="foot">${late} fighter${late===1?'':'s'} signed up after the draw. Redraw to include them.</p>`:''}
+    <div class="row" style="margin-top:10px"><button class="btn sm ghost ${S.confirm===k?'armed':''}" data-act="draw" data-div="${d.k}">${picked?(S.confirm===k?'Tap again: clears all results':'Redraw bracket'):'Redraw bracket'}</button></div></div>`;
+}
+
+/* ---------- history: tournament summaries ---------- */
+/* One results/{tid} doc per tournament holds every fighter's pit and bracket results,
+   so player and park history never needs to load old bouts. */
+function computeSummary(tid,bl){
+  const t=tByid(tid); if(!t) return null;
+  const all=bl||boutsFor(tid);
+  const out={tid,name:t.name||'',date:t.date||'',park:t.park||'',level:tLevel(t),format:tFormat(t),final:t.status==='final',fighters:{},divs:{},updatedAt:Date.now()};
+  signupsFor(tid).forEach(s=>{out.fighters[s.fid]={n:fname(s.fid),p:fpark(s.fid),o:fork(s.fid)||null};});
+  offered(t).forEach(d=>{const ids=inDiv(tid,d.k); if(!ids.length) return;
+    if(tFormat(t)==='elim'){const E=elim(tid,d.k), pl=places(tid,d.k), rows={};
+      ids.forEach(f=>{const r=E?elimRecord(E,f):{wins:0,losses:0,best:0};rows[f]={k:0,d:r.losses,b:r.best,w:r.wins,pl:pl.indexOf(f)+1};});
+      out.divs[d.k]={n:ids.length,tally:false,fmt:'elim',rows}; return;}
+    const {map}=pitStats(tid,d.k,all.filter(b=>b.div===d.k)); const pl=places(tid,d.k); const rows={};
+    new Set([...ids,...Object.keys(map)]).forEach(f=>{const m=map[f]||{};rows[f]={k:m.k||0,d:m.d||0,b:m.best||0,pl:pl.indexOf(f)+1};});
+    out.divs[d.k]={n:ids.length,tally:isTally(tid,d.k),rows};});
+  return out;
+}
+function summaries(){
+  const out={}; Object.values(S.results).forEach(r=>{if(r&&r.tid&&tByid(r.tid)) out[r.tid]=r;});
+  if(S.tid&&T()&&S.boutsTid===S.tid){const live=computeSummary(S.tid); if(live) out[S.tid]=live;}
+  return Object.values(out).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.name||'').localeCompare(b.name||''));
+}
+const sumTimers={};
+function scheduleSummary(tid){if(!tid||!S.db)return; clearTimeout(sumTimers[tid]); sumTimers[tid]=setTimeout(()=>writeSummary(tid),2500);}
+async function writeSummary(tid,bl){
+  if(!tByid(tid)) return; if(!bl&&!(tid===S.tid&&S.boutsTid===tid&&S.boutsReady)) return;
+  const sm=computeSummary(tid,bl); if(!sm) return;
+  try{await S.db.doc('results/'+tid).set(sm);}catch(e){console.warn('Could not save the tournament summary',e);}
+}
+async function backfill(){
+  if(S.backfilling||!S.db||S.isMarshal===false) return; S.backfilling=true;
+  try{for(const t of S.tournaments){
+    if(S.backfilled.has(t.id)||S.results[t.id]) continue;
+    if(t.id===S.tid&&!S.boutsReady) continue;
+    S.backfilled.add(t.id);
+    try{let bl;
+      if(t.id===S.tid) bl=S.bouts;
+      else{const q=await S.db.collection('bouts').where('tid','==',t.id).get(); bl=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.at||0)-(b.at||0));}
+      await writeSummary(t.id,bl);}catch(e){console.warn('Could not build history for',t.name,e);}
+  }}finally{S.backfilling=false;}
+}
+/* Bouts load for the selected tournament only; older tournaments come from summaries. */
+function watchBouts(){
+  if(!S.db||S.boutsTid===S.tid) return;
+  if(S.unBouts){S.unBouts();S.unBouts=null;}
+  S.boutsTid=S.tid; S.bouts=[]; S.boutsReady=false;
+  if(!S.tid){S.seen.add('b'); if(S.seen.size>=5) S.ready=true; return;}
+  const tid=S.tid;
+  S.unBouts=S.db.collection('bouts').where('tid','==',tid).onSnapshot(s=>{
+    if(S.boutsTid!==tid) return;
+    S.bouts=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.at||0)-(b.at||0));
+    S.boutsReady=true; S.seen.add('b'); if(S.seen.size>=5) S.ready=true; render();
+  },e=>console.error(e));
+}
+
+/* ---------- charts ---------- */
+function niceStep(max){const raw=max/4;const p=Math.pow(10,Math.floor(Math.log10(raw||1)));const f=raw/p;return Math.max(1,(f<=1?1:f<=2?2:f<=5?5:10)*p);}
+const shortDate=d=>{if(!d)return '';const [y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('en-US',{month:'short',day:'numeric'});};
+const longDate=d=>{if(!d)return '';const [y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});};
+function barChart(items,title,width){
+  if(!items.length) return '<p class="none">Nothing to chart yet.</p>';
+  const n=items.length, pl=34, pr=10, pt=18, ph=150, pb=40;
+  const slot=Math.max(46,Math.min(96,Math.floor(((width||640)-pl-pr)/n)));
+  const W=pl+pr+n*slot, H=pt+ph+pb;
+  const max=Math.max(1,...items.map(i=>i.v)), step=niceStep(max), top=Math.ceil(max/step)*step;
+  const y=v=>pt+ph-(v/top)*ph;
+  let grid=''; for(let v=0;v<=top+1e-9;v+=step) grid+=`<line class="cgrid" x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}"/><text class="ctick" x="${pl-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`;
+  const bw=Math.min(34,slot-14), maxI=items.findIndex(i=>i.v===max);
+  let lastYear='';
+  const bars=items.map((it,i)=>{
+    const cx=pl+slot*i+slot/2, x0=cx-bw/2, yt=y(it.v), h=pt+ph-yt, r=Math.min(4,h);
+    const path=h>0.5?`M${x0},${pt+ph}V${yt+r}Q${x0},${yt} ${x0+r},${yt}H${x0+bw-r}Q${x0+bw},${yt} ${x0+bw},${yt+r}V${pt+ph}Z`:'';
+    const lab=(i===maxI||i===n-1)&&it.v>0?`<text class="cval" x="${cx}" y="${yt-6}" text-anchor="middle">${it.v}</text>`:'';
+    const yr=(it.date||'').slice(0,4), sub=yr&&yr!==lastYear?yr:''; lastYear=yr||lastYear;
+    return `<g class="cbar" tabindex="0" role="img" aria-label="${esc(it.tip.replace(/\n/g,', '))}" data-tip="${esc(it.tip)}"><rect class="chit" x="${cx-slot/2+1}" y="${pt-6}" width="${slot-2}" height="${ph+6}"/>${path?`<path d="${path}"/>`:''}${lab}<text class="cx" x="${cx}" y="${pt+ph+16}" text-anchor="middle">${esc(it.label)}</text><text class="cx2" x="${cx}" y="${pt+ph+31}" text-anchor="middle">${esc(sub)}</text></g>`;}).join('');
+  return `<div class="scroll"><svg class="chart" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-label="${esc(title)}">${grid}<line class="caxis" x1="${pl}" x2="${W-pr}" y1="${pt+ph}" y2="${pt+ph}"/>${bars}</svg></div>`;
+}
+(function(){const tip=()=>$('#ctip');
+  const show=(el,x,y)=>{const t=tip();t.textContent=el.dataset.tip;t.hidden=false;
+    const r=t.getBoundingClientRect();let L=x+14,Tp=y-r.height-12;if(L+r.width>innerWidth-8)L=x-r.width-14;if(Tp<8)Tp=y+16;t.style.left=Math.max(8,L)+'px';t.style.top=Tp+'px';};
+  document.addEventListener('mousemove',e=>{const g=e.target.closest&&e.target.closest('.cbar');if(g)show(g,e.clientX,e.clientY);else if(!tip().hidden)tip().hidden=true;});
+  document.addEventListener('focusin',e=>{const g=e.target.closest&&e.target.closest('.cbar');if(g){const r=g.getBoundingClientRect();show(g,r.left+r.width/2,r.top+20);}});
+  document.addEventListener('focusout',e=>{if(e.target.closest&&e.target.closest('.cbar'))tip().hidden=true;});
+  addEventListener('scroll',()=>{tip().hidden=true;},{passive:true});
+})();
+const tile=(l,v,sub)=>`<div class="tile"><div class="l">${l}</div><div class="v">${v}</div>${sub?`<small>${sub}</small>`:''}</div>`;
+const medals=m=>[0,1,2].map(i=>m[i]?`<span class="rchip"><span class="pip m${i+1}"></span>${m[i]}× ${PLACE_TXT[i]}</span>`:'').join('')||'<span class="muted">None yet</span>';
+const contentWidth=el=>Math.max(300,(el&&el.clientWidth)||640);
+
+/* ---------- players ---------- */
+function playerHistory(fid,sms){
+  return (sms||summaries()).filter(sm=>sm.fighters&&sm.fighters[fid]).map(sm=>({tid:sm.tid,name:sm.name,date:sm.date,park:sm.park,level:sm.level,
+    divs:Object.entries(sm.divs||{}).filter(([,dv])=>dv.rows&&dv.rows[fid]).map(([dk,dv])=>{const r=dv.rows[fid];
+      return {div:dk,k:r.k||0,d:r.d||0,b:r.b||0,pl:r.pl||0,pp:r.pl>=1&&r.pl<=3?PLACE_PTS[r.pl-1]:0,tally:!!dv.tally};})}));
+}
+function renderPlayers(){
+  const root=$('#playerView');
+  if(!$('#pq')) root.innerHTML=`<div class="plgrid"><div class="panel plist"><label class="lbl" for="pq">Find a fighter</label><input id="pq" type="search" autocomplete="off" placeholder="Persona or park"><ul id="plist"></ul></div><div id="pprofile"></div></div>`;
+  const sms=summaries(), P={};
+  sms.forEach(sm=>Object.keys(sm.fighters||{}).forEach(f=>{(P[f]||(P[f]={id:f,ev:0}));P[f].ev++;}));
+  Object.keys(S.fighters).forEach(f=>{P[f]||(P[f]={id:f,ev:0});});
+  let list=Object.values(P).sort((a,b)=>fname(a.id).localeCompare(fname(b.id)));
+  if(!S.player||!P[S.player]) S.player=(list.slice().sort((a,b)=>b.ev-a.ev)[0]||{}).id||null;
+  const q=S.pq.trim().toLowerCase(); if(q) list=list.filter(p=>fname(p.id).toLowerCase().includes(q)||fpark(p.id).toLowerCase().includes(q));
+  $('#plist').innerHTML=list.length?list.slice(0,80).map(p=>`<li><button class="pbtn ${p.id===S.player?'on':''}" data-act="player" data-f="${esc(p.id)}"><span><b>${esc(fname(p.id))}</b><br><small>${esc(fpark(p.id)||'')}</small></span><small>${p.ev} event${p.ev===1?'':'s'}</small></button></li>`).join('')+(list.length>80?`<li class="foot">Showing 80 of ${list.length}. Search to narrow it down.</li>`:'')
+    :'<li class="none">No fighters match.</li>';
+  const el=$('#pprofile'), fid=S.player;
+  if(!fid){el.innerHTML='<div class="panel"><p class="none">Fighters show up here once they’ve signed up for a tournament.</p></div>';return;}
+  const hist=playerHistory(fid,sms), m=[0,0,0]; let k=0,pp=0,best=0,bestAt=null;
+  const byDiv={}; DIVS.forEach(d=>byDiv[d.k]={ev:0,k:0,b:0,m:[0,0,0],pp:0});
+  hist.forEach(h=>h.divs.forEach(x=>{k+=x.k;pp+=x.pp;if(x.pl)m[x.pl-1]++;if(x.b>best){best=x.b;bestAt=h;}
+    const D=byDiv[x.div]; if(D){D.ev++;D.k+=x.k;D.b=Math.max(D.b,x.b);D.pp+=x.pp;if(x.pl)D.m[x.pl-1]++;}}));
+  const w=warriorOf(fid), o=fork(fid);
+  const df=S.pdiv, metric=S.pmetric;
+  const items=hist.map(h=>{const ds=h.divs.filter(x=>df==='all'||x.div===df); if(!ds.length) return null;
+    const kk=ds.reduce((a,x)=>a+x.k,0), pts=ds.reduce((a,x)=>a+x.pp+x.k,0), pl=ds.filter(x=>x.pl).map(x=>`${PLACE_TXT[x.pl-1]} ${DIV[x.div]?.s||x.div}`);
+    return {v:metric==='k'?kk:pts,label:shortDate(h.date),date:h.date,tip:`${h.name}\n${longDate(h.date)} · ${h.park}\n${kk} pit kill${kk===1?'':'s'} · ${pts} points${pl.length?'\n'+pl.join(', '):''}`};}).filter(Boolean);
+  const divRows=DIVS.filter(d=>byDiv[d.k].ev).map(d=>{const D=byDiv[d.k];return `<tr><td>${sw(d.k)} ${esc(d.n)}</td><td class="n">${D.ev}</td><td class="n">${D.k}</td><td class="n">${D.b||'—'}</td><td>${[0,1,2].map(i=>D.m[i]?`<span class="pip m${i+1}" title="${PLACE_TXT[i]}"></span>`.repeat(D.m[i]):'').join('')||'<span class="muted">—</span>'}</td><td class="n"><b>${D.pp+D.k}</b></td></tr>`;}).join('');
+  const evRows=hist.slice().reverse().map(h=>`<tr><td class="num" style="white-space:nowrap">${esc(longDate(h.date))}</td><td>${esc(h.name)}<small class="muted" style="display:block">${esc(h.park)}</small></td><td>${h.divs.map(x=>`<span class="rchip">${sw(x.div)}${esc(DIV[x.div]?.s||x.div)} · ${x.k} kill${x.k===1?'':'s'}${x.pl?` · <b>${PLACE_TXT[x.pl-1]}</b>`:''}</span>`).join('')}</td><td class="n"><b>${h.divs.reduce((a,x)=>a+x.pp+x.k,0)}</b></td></tr>`).join('');
+  el.innerHTML=`<div class="stack"><div class="panel">
+      <h2>${esc(fname(fid))}</h2>
+      <p class="muted" style="margin:6px 0 0">${esc(fpark(fid)||'Park not set')}${o?' · '+orkLink(o):''}${w?` · Order of the Warrior ${w.w}`:''}</p>
+      <div class="tiles">${tile('Tournaments',hist.length)}${tile('Pit kills',k)}${tile('Points',pp+k,`${pp} from placing`)}${tile('Best win streak',best||'—',bestAt?esc(bestAt.name):'')}</div>
+      <div class="lbl" style="margin-bottom:4px">Podiums</div><div>${medals(m)}</div></div>
+    <div class="panel"><div class="chartbar"><h3>${metric==='k'?'Pit kills':'Points'} per tournament</h3>
+        <div class="controls" style="margin:0"><div class="seg"><button class="${metric==='pts'?'on':''}" data-act="pmetric" data-v="pts">Points</button><button class="${metric==='k'?'on':''}" data-act="pmetric" data-v="k">Pit kills</button></div>
+        <select id="pdiv" aria-label="Division"><option value="all">All divisions</option>${DIVS.map(d=>`<option value="${d.k}" ${df===d.k?'selected':''}>${d.n}</option>`).join('')}</select></div></div>
+      ${barChart(items,`${fname(fid)}: ${metric==='k'?'pit kills':'points'} per tournament`,contentWidth(el)-40)}
+      <p class="foot">Points are placement points (1st 5, 2nd 3, 3rd 1) plus pit kills. Hover or tab to a bar for details.</p></div>
+    <div class="panel"><h3 style="margin-bottom:8px">By division</h3>${divRows?`<div class="scroll"><table><thead><tr><th>Division</th><th class="n">Events</th><th class="n">Kills</th><th class="n">Best run</th><th>Places</th><th class="n">Points</th></tr></thead><tbody>${divRows}</tbody></table></div>`:'<p class="none">No results yet.</p>'}</div>
+    <div class="panel"><h3 style="margin-bottom:8px">Event history</h3>${evRows?`<div class="scroll"><table><thead><tr><th>Date</th><th>Tournament</th><th>Results</th><th class="n">Points</th></tr></thead><tbody>${evRows}</tbody></table></div>`:'<p class="none">No tournaments yet.</p>'}</div></div>`;
+}
+document.addEventListener('input',e=>{if(e.target.id==='pq'){S.pq=e.target.value;renderPlayers();}});
+
+/* ---------- parks ---------- */
+const KNOWN_PARKS=['Siar Geata','Anduril','Ashen Grove','Ethereal Hollow','Quixotic Valley','Emerald Dunes'];
+function renderParks(){
+  const sms=summaries(); const counts={}; sms.forEach(sm=>{if(sm.park)counts[sm.park]=(counts[sm.park]||0)+1;});
+  const parks=[...new Set([...Object.keys(counts).sort((a,b)=>counts[b]-counts[a]),...KNOWN_PARKS])];
+  if(!S.park||!parks.includes(S.park)) S.park=parks[0];
+  const P=S.park, list=sms.filter(sm=>sm.park===P);
+  const turn=sm=>Object.keys(sm.fighters||{}).length;
+  const total=list.reduce((a,sm)=>a+turn(sm),0), biggest=list.slice().sort((a,b)=>turn(b)-turn(a))[0];
+  const titles={}, regs={};
+  list.forEach(sm=>{Object.keys(sm.fighters||{}).forEach(f=>regs[f]=(regs[f]||0)+1);
+    Object.values(sm.divs||{}).forEach(dv=>Object.entries(dv.rows||{}).forEach(([f,r])=>{if(r.pl===1)titles[f]=(titles[f]||0)+1;}));});
+  const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]||fname(a[0]).localeCompare(fname(b[0]))).slice(0,n);
+  const li=(n,f,sub)=>`<li><span class="big">${n}</span><div><button class="linkish" data-act="player" data-f="${esc(f)}">${esc(fname(f))}</button><div class="d">${sub}</div></div></li>`;
+  const champs=sm=>DIVS.map(d=>{const dv=sm.divs&&sm.divs[d.k];if(!dv)return '';const f=Object.keys(dv.rows||{}).find(x=>dv.rows[x].pl===1);
+    return f?`<span class="rchip">${sw(d.k)}${esc(d.s)} <button class="linkish" data-act="player" data-f="${esc(f)}">${esc(fname(f))}</button></span>`:'';}).join('')||'<span class="muted">No brackets finished</span>';
+  const turnout=sm=>DIVS.filter(d=>sm.divs&&sm.divs[d.k]).map(d=>`<span class="rchip">${sw(d.k)}${esc(d.s)} ${sm.divs[d.k].n}</span>`).join('');
+  const items=list.map(sm=>({v:turn(sm),label:shortDate(sm.date),date:sm.date,tip:`${sm.name}\n${longDate(sm.date)}\n${turn(sm)} fighters · ${Object.keys(sm.divs||{}).length} divisions`}));
+  const rows=list.slice().reverse().map(sm=>`<tr><td class="num" style="white-space:nowrap">${esc(longDate(sm.date))}</td><td>${esc(sm.name)}<small class="muted" style="display:block">${esc(LEVEL_N[sm.level]||'')} · ${sm.final?'Final':'In progress'}</small></td><td class="n"><b>${turn(sm)}</b></td><td>${turnout(sm)}</td><td>${champs(sm)}</td></tr>`).join('');
+  const el=$('#parkView');
+  el.innerHTML=`<div class="dchips">${parks.map(p=>`<button class="dchip ${p===P?'on':''}" style="--tc:var(--or)" data-act="park" data-p="${esc(p)}">${esc(p)}<small>${counts[p]||0}</small></button>`).join('')}</div>
+    <div class="boardgrid"><div class="stack">
+      <div class="panel"><h2>${esc(P)} <span class="sub">tournaments</span></h2>
+        <div class="tiles">${tile('Tournaments hosted',list.length)}${tile('Fighter entries',total)}${tile('Average turnout',list.length?Math.round(total/list.length*10)/10:'—')}${tile('Biggest turnout',biggest?turn(biggest):'—',biggest?esc(biggest.name):'')}</div>
+        <h3 style="margin:6px 0 8px">Fighters per tournament</h3>${barChart(items,`${P}: fighters per tournament`,(contentWidth(el)>900?contentWidth(el)-340:contentWidth(el))-40)}</div>
+      <div class="panel"><h3 style="margin-bottom:8px">Tournament history</h3>${rows?`<div class="scroll"><table><thead><tr><th>Date</th><th>Tournament</th><th class="n">Fighters</th><th>By division</th><th>Champions</th></tr></thead><tbody>${rows}</tbody></table></div>`:`<p class="none">${esc(P)} hasn’t hosted a tournament in Field Marshal yet.</p>`}</div></div>
+    <aside class="side">
+      <div class="panel"><h3>Most titles here</h3>${Object.keys(titles).length?`<ul class="sl">${top(titles,5).map(([f,n])=>li(n,f,`1st place${n===1?'':'s'} at ${esc(P)}`)).join('')}</ul>`:'<p class="none">No champions yet.</p>'}</div>
+      <div class="panel"><h3>Regulars</h3>${Object.keys(regs).length?`<ul class="sl">${top(regs,5).map(([f,n])=>li(n,f,`tournament${n===1?'':'s'} at ${esc(P)}`)).join('')}</ul>`:'<p class="none">No fighters yet.</p>'}</div>
+    </aside></div>`;
+}
+
+/* ---------- rendering ---------- */
+function render(){
+  if(!S.isMarshal&&S.tab==='awards') S.tab='signups';
+  document.body.classList.toggle('marshal',!!S.isMarshal);
+  renderAuth();
+  renderHeader();
+  watchBouts();
+  {const el=!!T()&&tFormat(T())==='elim'; const pb=document.querySelector('.tabs [data-tab=pits]'); if(pb) pb.hidden=el; if(el&&S.tab==='pits') S.tab='brackets';}
+  const has=!!T();
+  $('#tabs').hidden=!has;
+  $('#empty').hidden=has;
+  if(!has) renderEmpty();
+  const rc=has?recsFor(S.tid).filter(r=>r.state==='recommend'&&!S.recs[S.tid+'__'+r.fid]?.status).length:0; $('#recCount').textContent=rc; $('#recCount').hidden=!rc;
+  ['signups','pits','brackets','board','players','parks','awards'].forEach(x=>{$('#tab-'+x).hidden=!has||S.tab!==x;});
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===S.tab));
+  if(!has) return;
+  if(S.formTid!==S.tid) buildSignupForm();
+  const ae=document.activeElement, aid=ae&&ae.id&&ae.dataset&&ae.dataset.tally!==undefined?ae.id:null, aval=aid?ae.value:null;
+  ({signups:renderSignups,pits:renderPits,brackets:renderBrackets,board:renderBoard,players:renderPlayers,parks:renderParks,awards:renderAwards})[S.tab]?.();
+  if(S.ready&&S.resultsSeen) setTimeout(backfill,0);
+  lockPass();
+  if(aid){const el=document.getElementById(aid); if(el&&el!==ae){el.value=aval;el.focus();}}
+  if(S.tab==='signups') renderStandalone();
+  if(S.tab==='awards'){autoWarrior();renderOrkAuth();}
+  gate();
+  tick();
+}
+function renderHeader(){
+  const sel=$('#tpick');
+  sel.innerHTML=S.tournaments.length?S.tournaments.map(t=>`<option value="${esc(t.id)}" ${t.id===S.tid?'selected':''}>${esc(t.name)}${t.date?' · '+esc(t.date):''}</option>`).join(''):'<option>No tournaments yet</option>';
+  sel.disabled=!S.tournaments.length;
+  const t=T();
+  $('#tmeta').innerHTML=t?`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${signupsFor(t.id).length}</b> fighters signed up</span><span>Format <b>${esc(FORMATS.find(f=>f.k===tFormat(t)).n)}</b></span>${tFormat(t)==='elim'?'<span>Scoring: 1st = 5 · 2nd = 3 · 3rd = 1</span>':`<span>Pits run <b>${esc(t.pitMin||10)} min</b></span><span>Scoring: kill = 1 · 1st = 5 · 2nd = 3 · 3rd = 1</span>`}`:'';
+  const seenN=new Set(), opts=[];
+  Object.values(S.fighters).forEach(f=>{const k=(f.name||'').toLowerCase(); if(k&&!seenN.has(k)){seenN.add(k);opts.push(`<option value="${esc(f.name)}">${esc(f.park||'')}</option>`);}});
+  S.roster.players.forEach(r=>{const k=r.p.toLowerCase(); if(!seenN.has(k)){seenN.add(k);opts.push(`<option value="${esc(r.p)}">${esc(r.park)} · ORK</option>`);}});
+  $('#fighterNames').innerHTML=opts.join('');
+}
+function renderEmpty(){
+  const el=$('#empty');
+  if(!S.ready&&!S.offline){el.innerHTML='<p>Loading the lists…</p>';return;}
+  if(S.offline==='config'){el.innerHTML='<h2>Field Marshal needs its database</h2><p>Paste your Firebase settings into <b>config.js</b>, then reload. The steps are in README.md.</p>';return;}
+  if(S.offline){el.innerHTML='<h2>Can’t reach the lists</h2><p>Check your internet connection and reload the page.</p>';return;}
+  if(!S.isMarshal){el.innerHTML='<h2>No tournaments yet</h2><p>When a marshal opens a tournament, signups, pits, brackets and standings show up here live.</p>';return;}
+  el.innerHTML=`<h2>No tournaments yet</h2><p>Create a tournament, sign fighters up for the five divisions, run each pit on the clock, then take the top four into brackets. Every marshal with this page open sees results live.</p><button class="btn" data-act="newT">Create a tournament</button>`;
+}
+function buildDivChecks(el,name,checked){
+  el.innerHTML=DIVS.filter(d=>name==='t'||offered().some(o=>o.k===d.k)).map(d=>`<label style="${tc(d.k)}"><input type="checkbox" value="${d.k}" ${checked(d.k)?'checked':''}>${sw(d.k)}${d.n}</label>`).join('');
+}
+function buildSignupForm(){
+  S.formTid=S.tid;
+  buildDivChecks($('#suDivs'),'su',()=>false);
+  buildDivChecks($('#rqDivs'),'rq',()=>false);
+  $('#suPark').value=T()?.park||'';
+}
+
+function renderSignups(){
+  const tid=S.tid, sus=signupsFor(tid).sort((a,b)=>fname(a.fid).localeCompare(fname(b.fid))), ds=offered();
+  const counts=`<div class="counts">${ds.map(d=>`<div class="count">${sw(d.k)}${d.n} <b class="num">${inDiv(tid,d.k).length}</b></div>`).join('')}</div>`;
+  const rows=sus.length?sus.map(s=>{
+    const key='rmsu:'+s.id;
+    return `<div class="su"><div class="who"><b>${esc(fname(s.fid))}</b><small>${esc(fpark(s.fid)||'Park not set')} · ${fork(s.fid)?orkLink(fork(s.fid)):'No ORK ID'}${warriorOf(s.fid)?' · Warrior '+warriorOf(s.fid).w:''}</small></div>
+      <div class="togs">${ds.map(d=>`<button class="tog ${(s.divs||[]).includes(d.k)?'on':''}" style="${tc(d.k)}" data-act="togdiv" data-su="${esc(s.id)}" data-div="${d.k}" title="${d.n}" aria-pressed="${(s.divs||[]).includes(d.k)}">${sw(d.k)}${d.s}</button>`).join('')}</div>
+      <button class="btn sm danger ${S.confirm===key?'armed':''}" data-act="rmsu" data-su="${esc(s.id)}">${S.confirm===key?'Tap again to remove':'Remove'}</button></div>`;}).join('')
+    :'<p class="none">No one has signed up yet. Add fighters above as they check in.</p>';
+  const R=S.roster, rn=R.players.length;
+  const note=`<p class="foot" style="margin:-4px 0 14px">${rn?`Persona suggestions include ${rn} recent ORK players from the Stone Rivers parks${R.updatedAt?', updated '+esc(R.updatedAt):''}. `:''}Anyone missing: paste their ORK profile link when you sign them up. To fix a fighter’s park or ORK ID, sign them up again with the same persona.</p>`;
+  $('#suList').innerHTML=`<h2>Signed up · <span class="num">${sus.length}</span></h2>${note}${counts}${rows}`;
+  const t=T(), dk='delT:'+t.id;
+  $('#tSettings').innerHTML=`<h2>Tournament settings</h2><div class="row">
+    <div class="field" style="flex:0 1 220px"><label for="setLevel">Tournament level</label><select id="setLevel">${LEVELS.map(l=>`<option value="${l.k}" ${tLevel(t)===l.k?'selected':''}>${l.n}</option>`).join('')}</select></div>
+    <div class="field" style="flex:0 1 220px"><label for="setFormat">Format</label><select id="setFormat">${FORMATS.map(f=>`<option value="${f.k}" ${tFormat(t)===f.k?'selected':''}>${f.n}</option>`).join('')}</select></div>
+    <div class="field" style="flex:0 1 160px" ${tFormat(t)==='elim'?'hidden':''}><label for="setMin">Pit length (min)</label><input id="setMin" type="number" min="1" max="120" value="${esc(t.pitMin||10)}"></div>
+    <button class="btn danger ${S.confirm===dk?'armed':''}" data-act="delT">${S.confirm===dk?'Tap again to delete everything':'Delete tournament'}</button></div>
+    <p class="foot">Deleting removes this tournament’s signups, pit results and brackets for everyone.</p>`;
+}
+
+function renderPits(){
+  const tid=S.tid, ds=offered(); if(!ds.some(d=>d.k===S.div)) S.div=ds[0]?.k; const d=S.div; if(!d){$('#pitView').innerHTML='';return;}
+  const chips=`<div class="dchips">${ds.map(x=>`<button class="dchip ${x.k===d?'on':''}" style="${tc(x.k)}" data-act="div" data-div="${x.k}">${sw(x.k)}${x.n}<small>${inDiv(tid,x.k).length}</small></button>`).join('')}</div>`;
+  const {map,arr}=pitStats(tid,d), bl=boutsFor(tid,d), last=bl[bl.length-1], seeded=!!bracket(tid,d);
+  const p=S.pick[d]||{}; const a=('a' in p)?p.a:(last?.w||null); const b=p.b||null;
+  const tm=timerOf(tid,d);
+  const slot=(id,label,which,hill)=>id?`<button class="slot filled ${hill?'hill':''}" data-act="slot" data-slot="${which}" title="Tap to clear"><span class="lbl">${label}</span><b>${esc(fname(id))}</b><small>${map[id]?.k||0} kills${map[id]?.cur>=2?` · ${map[id].cur} in a row`:''}</small></button>`
+    :`<div class="slot"><span class="lbl">${label}</span><small>Tap a fighter below</small></div>`;
+  const onHill=a&&last&&a===last.w;
+  const fighters=inDiv(tid,d), TM=isTally(tid,d);
+  const modebar=`<div class="modebar m-only"><div class="seg" role="group" aria-label="How this pit is scored"><button class="${TM?'':'on'}" data-act="mode" data-v="bouts">Log each bout</button><button class="${TM?'on':''}" data-act="mode" data-v="tally">Reeve tally</button></div><span class="muted" style="font-size:.9rem">${TM?'Reeve enters each combatant’s total pit wins.':'Tap who fought and who won. Tracks streaks.'}</span></div>`;
+  let console_;
+  if(!S.isMarshal&&!isFinal()){
+    console_=seeded?`<p class="muted">Pit closed. The top four are in the ${esc(DIV[d].n)} bracket.</p>`
+      :(onHill?`<div class="bout"><div class="slot filled hill"><span class="lbl">Holding the pit</span><b>${esc(fname(a))}</b><small>${map[a]?.k||0} kills${map[a]?.cur>=2?` · ${map[a].cur} in a row`:''}</small></div></div>`:'')
+       +`<p class="muted" style="margin-top:10px">Standings update live as the reeves log the pit.</p>`;
+  } else if(isFinal()){
+    console_=`<div class="banner"><span><b>Tournament finalized.</b> Pit results are locked.</span><button class="btn sm" data-act="tab" data-tab="brackets">See final results</button></div>`;
+  } else if(seeded){
+    console_=`<div class="banner"><span><b>Pit closed.</b> The top four are seeded into the ${esc(DIV[d].n)} bracket.</span><span class="row"><button class="btn sm" data-act="tab" data-tab="brackets">Go to bracket</button><button class="btn sm ghost ${S.confirm==='reopen:'+d?'armed':''}" data-act="reopen" data-div="${d}">${S.confirm==='reopen:'+d?'Tap again: clears bracket':'Reopen pit'}</button></span></div>`;
+  } else if(TM){
+    console_=fighters.length?`<div class="tally">${fighters.map(f=>{const n=tallyN(tid,d,f),nm=esc(fname(f));return `<div class="trow"><div class="who"><b>${nm}</b><small>${esc(fpark(f)||'')}</small></div>
+      <div class="step"><button class="btn sm ghost" data-act="tstep" data-f="${esc(f)}" data-v="-1" aria-label="One fewer win for ${nm}" ${n<=0?'disabled':''}>−</button>
+      <input id="tly-${d}-${esc(f)}" data-tally="${esc(f)}" type="number" min="0" max="999" inputmode="numeric" value="${n}" aria-label="Pit wins for ${nm}">
+      <button class="btn sm" data-act="tstep" data-f="${esc(f)}" data-v="1" aria-label="One more win for ${nm}">+</button></div></div>`;}).join('')}</div>
+      <p class="foot">Each change saves right away and shows for every marshal. Type a number and press Enter, or use − and +.</p>`
+      :`<p class="none">No combatants in ${esc(DIV[d].n)} yet. Sign fighters up on the Signups tab.</p>`;
+  } else if(fighters.length<2){
+    console_=`<p class="none">${esc(DIV[d].n)} needs at least two fighters. Sign more up on the Signups tab.</p>`;
+  } else {
+    console_=`<div class="bout">${slot(a,onHill?'Holding the pit':'Fighter A','a',onHill)}<span class="vs">vs</span>${slot(b,'Challenger','b',false)}</div>
+      <div class="wins"><button class="btn" data-act="win" data-w="${esc(a||'')}" data-l="${esc(b||'')}" ${a&&b?'':'disabled'}>${a?esc(fname(a)):'A'} wins</button>
+      <button class="btn" data-act="win" data-w="${esc(b||'')}" data-l="${esc(a||'')}" ${a&&b?'':'disabled'}>${b?esc(fname(b)):'Challenger'} wins</button></div>
+      <div class="roster">${fighters.map(f=>`<button class="fbtn ${f===a||f===b?'sel':''}" data-act="pick" data-f="${esc(f)}"><b>${esc(fname(f))}</b><small>${map[f]?.k||0} K · ${map[f]?.d||0} D${map[f]?.cur>=2?' · streak '+map[f].cur:''}</small></button>`).join('')}</div>`;
+  }
+  const standings=arr.length?`<div class="scroll"><table><thead><tr><th>#</th><th>Fighter</th><th class="n">${TM?'Pit wins':'Kills'}</th>${TM?'':'<th class="n">Deaths</th><th class="n">Best run</th>'}</tr></thead><tbody>
+    ${arr.map((r,i)=>`<tr class="${i<4?'top4':''}"><td class="num">${i+1}</td><td>${esc(fname(r.id))}</td><td class="n"><b>${r.k}</b></td>${TM?'':`<td class="n">${r.d}</td><td class="n">${r.best}</td>`}</tr>`).join('')}</tbody></table></div>
+    ${seeded?'':`<div class="row" style="margin-top:12px"><button class="btn" data-act="seed" data-div="${d}" ${arr.length>=2?'':'disabled'}>Close pit and seed top 4</button></div>`}
+    <p class="foot">${TM?'Ties are listed alphabetically; settle them and adjust seeds on the Brackets tab.':'Ties break on best run, then fewest deaths. Seeds can be adjusted on the Brackets tab.'}</p>`:'<p class="none">No fighters in this division yet.</p>';
+  let run={};
+  const logRows=bl.map((x,i)=>{run[x.w]=(run[x.w]||0)+1;run[x.l]=0;return {x,i,n:run[x.w]};}).reverse().slice(0,25);
+  const log=logRows.length?`<ol class="log">${logRows.map(({x,i,n})=>{const key='undo:'+x.id;return `<li><span class="ix">${i+1}</span><span class="txt"><b>${esc(fname(x.w))}</b> defeated ${esc(fname(x.l))}</span>${n>=2?`<span class="stk">×${n}</span>`:''}
+      <button class="btn sm ghost ${S.confirm===key?'armed':''}" data-act="undo" data-id="${esc(x.id)}">${S.confirm===key?'Delete?':'Undo'}</button></li>`}).join('')}</ol>${bl.length>25?`<p class="foot">Showing the latest 25 of ${bl.length} bouts.</p>`:''}`
+    :'<p class="none">No bouts logged yet.</p>';
+  $('#pitView').innerHTML=`${chips}<div class="pitgrid"><div class="panel">
+      <div class="divhead"><h2>${sw(d)}${esc(DIV[d].n)} pit</h2>
+        <div class="timer"><span class="clock ${tm.running?'run':''}" data-timer="${d}">${fmt(tm.ms)}</span>
+        ${tm.running?`<button class="btn sm" data-act="timer" data-op="pause">Pause</button>`:`<button class="btn sm" data-act="timer" data-op="start" ${tm.ms<=0?'disabled':''}>${tm.ms<tm.len?'Resume':'Start'}</button>`}
+        <button class="btn sm ghost" data-act="timer" data-op="reset">Reset</button></div></div>
+      ${modebar}${console_}</div>
+    <div class="stack"><div class="panel"><h2>Pit standings</h2>${standings}</div>${TM?'':`<div class="panel"><h2>Bout log</h2>${log}</div>`}</div></div>`;
+}
+
+function renderBrackets(){
+  const tid=S.tid;
+  $('#brView').innerHTML=isElimT(tid)?`${finalBar(tid)}<div class="stack">${offered().map(d=>elimCard(tid,d)).join('')}</div>`
+    :`${finalBar(tid)}<div class="bgrid">${offered().map(d=>bracketCard(tid,d)).join('')}</div>`;
+}
+function bracketCard(tid,d){
+  const B=bracket(tid,d.k), fs=inDiv(tid,d.k);
+  const head=`<h2>${sw(d.k)}${esc(d.n)}</h2>`;
+  if(!B){
+    const n=boutsFor(tid,d.k).length;
+    return `<div class="panel bcard" style="${tc(d.k)}">${head}<p class="muted" style="margin:10px 0">${fs.length<2?'Needs at least two fighters signed up.':`Pit open · ${n} bout${n===1?'':'s'} logged.`}</p>
+      ${fs.length>=2?`<button class="btn sm" data-act="seed" data-div="${d.k}">Seed top 4 from the pit</button>`:''}</div>`;
+  }
+  const seedNo=id=>B.seeds.indexOf(id)+1;
+  const row=(M,p)=>{
+    if(p==='?') return `<div class="mrow ph"><span class="nm">${M.id==='t'?'Semifinal loser':'Semifinal winner'}</span></div>`;
+    if(!p) return `<div class="mrow ph"><span class="nm">Bye</span></div>`;
+    const cls=M.win===p?'win':(M.lose===p?'lose':'');
+    const can=M.state==='live'||M.state==='done';
+    return `<button class="mrow ${cls}" data-act="mwin" data-div="${d.k}" data-m="${M.id}" data-f="${esc(p)}" ${can?'':'disabled'}><span class="sd">${seedNo(p)||''}</span><span class="nm">${esc(fname(p))}</span></button>`;};
+  const match=(M,label)=>`<div class="match"><span class="lbl">${label}</span>${row(M,M.p1)}${row(M,M.p2)}</div>`;
+  const pl=places(tid,d.k);
+  const podium=`<div class="podium">${pl.map((f,i)=>`<div class="pl"><span class="medal m${i+1}">${i+1}</span><span class="nm">${f?esc(fname(f)):'<span class="muted">To be decided</span>'}</span><span class="pts">${f?'+'+PLACE_PTS[i]:''}</span></div>`).join('')}</div>`;
+  const ed=S.editSeeds[d.k];
+  const seeds=ed?`<div class="seeds">${[0,1,2,3].map(i=>`<label class="lbl" for="seed-${d.k}-${i}">Seed ${i+1}</label><select id="seed-${d.k}-${i}" data-seed="${d.k}" data-i="${i}"><option value="">(empty)</option>${fs.map(f=>`<option value="${esc(f)}" ${B.seeds[i]===f?'selected':''}>${esc(fname(f))}</option>`).join('')}</select>`).join('')}<p class="foot" style="margin:0">Changing seeds clears picked winners.</p></div>`:'';
+  return `<div class="panel bcard" style="${tc(d.k)}">${head}
+    <div class="tree">${match(B.s1,'Semifinal · 1 v 4')}${match(B.s2,'Semifinal · 2 v 3')}${match(B.f,'Final')}${match(B.t,'Third place')}</div>
+    ${podium}<div class="row" style="margin-top:10px"><button class="btn sm ghost" data-act="editseeds" data-div="${d.k}">${ed?'Done editing seeds':'Edit seeds'}</button></div>${seeds}</div>`;
+}
+
+function renderBoard(){
+  const sc=S.board.scope, df=S.board.div; const rows=tally();
+  const tids=sc==='season'?S.tournaments.map(t=>t.id):[S.tid];
+  const openRec=new Set(sc==='season'?[]:recsFor(S.tid).filter(r=>r.state==='recommend'&&!S.recs[S.tid+'__'+r.fid]?.status).map(r=>r.fid));
+  let rank=0,prev=null;
+  const body=rows.length?rows.map((r,i)=>{if(r.total!==prev){rank=i+1;prev=r.total;}
+    const pips=[0,1,2].flatMap(k=>Array(r.m[k]).fill(`<span class="pip m${k+1}" title="${PLACE_TXT[k]}"></span>`)).join('');
+    return `<tr class="${rank===1&&r.total>0?'r1':''}"><td class="rank">${rank}</td><td class="fp"><button class="linkish" data-act="player" data-f="${esc(r.id)}">${esc(fname(r.id))}</button>${sc!=='season'&&openRec.has(r.id)?' <button class="pill" data-act="tab" data-tab="awards" title="Warrior award recommended">Warrior rec</button>':''}<small>${esc(fpark(r.id))}</small></td>
+      <td class="n">${r.k}</td><td class="n">${r.d}</td><td><span class="pips">${pips||'<span class="muted">—</span>'}</span></td><td class="n">${r.pp}</td><td class="n total">${r.total}</td></tr>`;}).join('')
+    :`<tr><td colspan="7" class="none">No results yet.</td></tr>`;
+  const {runs,pits}=sc==='season'?streakSeason(df):streakData(tids,df);
+  const tn=tid=>sc==='season'?' · '+esc(tByid(tid)?.name||S.results[tid]?.name||''):'';
+  const hill=offered().filter(d=>df==='all'||d.k===df).map(d=>{const bl=boutsFor(S.tid,d.k);if(!bl.length||bracket(S.tid,d.k)||isTally(S.tid,d.k))return null;const last=bl[bl.length-1];const n=pitStats(S.tid,d.k).map[last.w]?.cur||0;return {d,f:last.w,n};}).filter(Boolean);
+  const li=(n,title,sub)=>`<li><span class="big">${n}</span><div><b>${title}</b><div class="d">${sub}</div></div></li>`;
+  const side=`<aside class="side">
+    <div class="panel"><h3>Holding the pit</h3>${hill.length?`<ul class="sl">${hill.map(h=>li(h.n,esc(fname(h.f)),`${sw(h.d.k)}${esc(h.d.n)} <span class="live">Live</span>`)).join('')}</ul>`:'<p class="none">No pits running right now.</p>'}</div>
+    <div class="panel"><h3>Longest win streaks</h3>${runs.length?`<ul class="sl">${runs.slice(0,6).map(r=>li(r.n,esc(fname(r.fid)),`${sw(r.div)}${esc(DIV[r.div].n)}${tn(r.tid)} · ${r.season?'best run of the event':r.by?'broken by '+esc(fname(r.by)):r.live?'<span class="live">Unbroken</span>':'ran out the clock'}`)).join('')}</ul>`:'<p class="none">Streaks of 2+ kills show up here.</p>'}</div>
+    <div class="panel"><h3>Most kills in one pit</h3>${pits.length?`<ul class="sl">${pits.slice(0,5).map(p=>li(p.k,esc(fname(p.fid)),`${sw(p.div)}${esc(DIV[p.div].n)}${tn(p.tid)} · ${p.d===null?'reeve tally':p.d+' death'+(p.d===1?'':'s')}`)).join('')}</ul>`:'<p class="none">Nothing logged yet.</p>'}</div>
+    ${(()=>{const clean=pits.filter(p=>p.d===0&&p.k>=3);return clean.length?`<div class="panel"><h3>Untouched</h3><p class="foot" style="margin:0 0 8px">Three or more kills without dying once in a pit.</p><ul class="sl">${clean.slice(0,5).map(p=>li(p.k,esc(fname(p.fid)),`${sw(p.div)}${esc(DIV[p.div].n)}${tn(p.tid)}`)).join('')}</ul></div>`:''})()}
+  </aside>`;
+  $('#boardView').innerHTML=`<div class="boardgrid"><div class="panel">
+    <div class="controls"><div class="seg"><button class="${sc==='tournament'?'on':''}" data-act="scope" data-v="tournament">This tournament</button><button class="${sc==='season'?'on':''}" data-act="scope" data-v="season">All tournaments</button></div>
+      <select id="boardDiv" aria-label="Division"><option value="all">All divisions</option>${DIVS.map(d=>`<option value="${d.k}" ${df===d.k?'selected':''}>${d.n}</option>`).join('')}</select>
+      <label><input type="checkbox" id="boardKills" ${S.board.kills?'checked':''}> Count pit kills as points</label></div>
+    <div class="scroll"><table><thead><tr><th>#</th><th>Fighter</th><th class="n">Kills</th><th class="n">Deaths</th><th>Places</th><th class="n">Place pts</th><th class="n">Total</th></tr></thead><tbody>${body}</tbody></table></div>
+    <p class="foot">Place points: 1st = 5, 2nd = 3, 3rd = 1 per division. ${S.board.kills?'Each pit kill adds 1 point.':'Pit kills are shown but not counted.'} Ties share a rank.</p></div>${side}</div>`;
+}
+function tick(){document.querySelectorAll('[data-timer]').forEach(el=>{const {ms,running}=timerOf(S.tid,el.dataset.timer);el.textContent=ms<=0?'Time':fmt(ms);el.classList.toggle('done',ms<=0);el.classList.toggle('run',running&&ms>0);});}
+setInterval(tick,500);
+
+/* ---------- writes ---------- */
+async function saveDiv(d,patch){
+  const id=S.tid+'__'+d; const cur=S.divs[id]||{tid:S.tid,div:d}; const next={...cur,...patch};
+  S.divs[id]=next; render(); return w(()=>S.db.doc('divisions/'+id).set(next));
+}
+function seedFromPit(d){const {arr}=pitStats(S.tid,d); if(arr.length<2){toast('Need at least two fighters to seed.');return;}
+  saveDiv(d,{bracket:{seeds:arr.slice(0,4).map(r=>r.id),w:{}},timer:{running:false,remain:0}}); toast(`${DIV[d].n} bracket seeded.`);}
+
+function setTally(fid,n){n=Math.max(0,Math.min(999,Math.round(Number(n)||0)));const d=S.div,id=S.tid+'__'+d+'__'+fid;
+  const data={tid:S.tid,div:d,fid,n}; S.tallies[id]=data; render(); w(()=>S.db.doc('tallies/'+id).set(data));}
+/* ---------- finalize ---------- */
+const LOCK_ACTS=new Set(['ewin','draw','win','undo','timer','seed','reopen','mwin','togdiv','rmsu','mode','tstep','pick','slot','editseeds','approve','decline']);
+const isFinal=()=>T()?.status==='final';
+function lockedAct(a){if(isFinal()&&LOCK_ACTS.has(a)){toast('This tournament is finalized. Reopen it on the Brackets tab to make changes.');return true;}return false;}
+function lockedInput(){if(isFinal()){toast('This tournament is finalized. Reopen it on the Brackets tab to make changes.');render();return true;}return false;}
+function lockPass(){const f=isFinal();
+  document.querySelectorAll('#tab-pits [data-act],#tab-brackets [data-act],#suList [data-act],[data-tally],[data-seed]').forEach(el=>{
+    const a=el.dataset.act; const lockable=a?LOCK_ACTS.has(a):true; if(!lockable) return;
+    if(f){if(!el.disabled){el.disabled=true;el.dataset.locked='1';}}
+    else if(el.dataset.locked){el.disabled=false;delete el.dataset.locked;}});}
+function divState(tid,d){const n=inDiv(tid,d).length; if(n<2) return 'na';
+  if(isElimT(tid)){const E=elim(tid,d); return !E?'draw':elimDone(E)?'done':'bracket';}
+  const B=bracket(tid,d); if(!B) return 'pit';
+  return B.f.win&&(B.t.state==='empty'||B.t.state==='bye'||B.t.win)?'done':'bracket';}
+function finalBar(tid){
+  const t=tByid(tid); if(!t) return '';
+  if(t.status==='final'){const k='reopenT:'+tid;
+    return `<div class="banner"><span><b>Final results.</b> Finalized ${t.finalizedAt?new Date(t.finalizedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):''}. Results are saved to player and park history.</span>
+      <button class="btn sm ghost ${S.confirm===k?'armed':''}" data-act="reopenT">${S.confirm===k?'Tap again to reopen':'Reopen tournament'}</button></div>`;}
+  const st=offered(t).map(d=>({d,s:divState(tid,d.k)})).filter(x=>x.s!=='na');
+  const done=st.filter(x=>x.s==='done').length, ready=st.length>0&&done===st.length, k='fin:'+tid;
+  const lbl={done:'Done',bracket:'Bracket in progress',pit:'Pit still open',draw:'Not drawn yet'};
+  return `<div class="panel" style="margin-bottom:18px"><div class="row" style="justify-content:space-between;align-items:center">
+    <div><h2 style="margin:0 0 6px">Finalize tournament</h2><div>${st.map(x=>`<span class="rchip">${sw(x.d.k)}${esc(x.d.s)} · ${x.s==='done'?'<b>Done</b>':lbl[x.s]}</span>`).join('')||'<span class="muted">No division has two or more fighters yet.</span>'}</div></div>
+    <button class="btn ${S.confirm===k?'armed':''}" data-act="finalize" ${ready?'':'disabled'}>${S.confirm===k?'Tap again to finalize':ready?'Finalize tournament':`${done} of ${st.length} divisions done`}</button></div>
+    <p class="foot" style="margin:8px 0 0">${ready?(isElimT(tid)?'Finalizing locks the brackets, closes player signups and saves the results to player and park history.':'Finalizing locks the pits and brackets, stops the clocks, closes player signups and saves the results to player and park history.'):'The button unlocks when every division with two or more fighters has its 1st, 2nd and 3rd decided.'}</p></div>`;
+}
+const H={
+  draw:ds=>{const d=ds.div, fs=inDiv(S.tid,d); if(fs.length<2){toast('Needs at least two fighters.');return;}
+    const E=elim(S.tid,d); if(E&&Object.values(E.W).some(Boolean)&&!arm('redraw:'+d)) return;
+    const sh=fs.slice(); for(let i=sh.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[sh[i],sh[j]]=[sh[j],sh[i]];}
+    let P=2; while(P<sh.length) P*=2;
+    const slots=seedOrder(P).map(n=>sh[n-1]||null), seeds=Object.fromEntries(sh.map((f,i)=>[f,i+1]));
+    saveDiv(d,{elim:{slots,seeds,w:{},drawnAt:Date.now()}}); toast(`${DIV[d].n} bracket drawn: ${sh.length} fighters${P>sh.length?`, ${P-sh.length} bye${P-sh.length===1?'':'s'}`:''}.`);},
+  ewin:ds=>{const dv=divDoc(S.tid,ds.div); if(!dv?.elim) return; const W={...(dv.elim.w||{})}; W[ds.m]=W[ds.m]===ds.f?null:ds.f; saveDiv(ds.div,{elim:{...dv.elim,w:W}});},
+  orkrec:ds=>{const r=recsFor(S.tid).find(x=>x.fid===ds.f); if(!r) return; const txt=recText(r);
+    const ok=()=>{S.copied[ds.f]=true;render();toast('Reason copied. On their ORK page, choose Recommend and paste it in.');};
+    const fail=()=>{S.copied[ds.f]='fail';render();toast('Couldn’t copy automatically. Copy the reason text shown under their results.');};
+    try{navigator.clipboard.writeText(txt).then(ok,fail);}catch(e){fail();}},
+  finalize:async()=>{const t=T(); if(!t)return; const st=offered(t).map(d=>divState(t.id,d.k)).filter(s=>s!=='na');
+    if(!st.length||st.some(s=>s!=='done')){toast('Finish every bracket first.');return;}
+    if(!arm('fin:'+t.id))return;
+    for(const d of offered(t)){if(divDoc(t.id,d.k)?.timer?.running) await saveDiv(d.k,{timer:{running:false,remain:0}});}
+    if(await w(()=>S.db.doc('tournaments/'+t.id).update({status:'final',finalizedAt:Date.now(),signupsOpen:false}))){
+      t.status='final'; clearTimeout(sumTimers[t.id]); await writeSummary(t.id); toast(`${t.name} is final. Results are saved to history.`);}},
+  reopenT:async()=>{const t=T(); if(!t||!arm('reopenT:'+t.id))return;
+    if(await w(()=>S.db.doc('tournaments/'+t.id).update({status:'open'}))) toast(`${t.name} is open for changes again.`);},
+  player:ds=>{S.player=ds.f;S.tab='players';saveLocal();render();window.scrollTo({top:0});},
+  park:ds=>{S.park=ds.p;render();},
+  pmetric:ds=>{S.pmetric=ds.v;render();},
+  rec:ds=>{const id=S.tid+'__'+ds.f, cur=S.recs[id]?.status; const next=cur===ds.v?null:ds.v;
+    if(next){const data={tid:S.tid,fid:ds.f,status:next,lvl:Number(ds.l)||null,at:Date.now()};S.recs[id]=data;render();w(()=>S.db.doc('recs/'+id).set(data));}
+    else{delete S.recs[id];render();w(()=>S.db.doc('recs/'+id).delete());}},
+  tab:ds=>{S.tab=ds.tab;saveLocal();render();window.scrollTo({top:0});},
+  newT:()=>{const el=$('#newT');el.hidden=!el.hidden;if(!el.hidden){$('#tDate').value=new Date().toLocaleDateString('en-CA');buildDivChecks($('#tDivs'),'t',()=>true);$('#tName').focus();}},
+  div:ds=>{S.div=ds.div;render();},
+  pick:ds=>{const d=S.div,p=S.pick[d]||(S.pick[d]={});const last=boutsFor(S.tid,d).slice(-1)[0];const a=('a' in p)?p.a:(last?.w||null);
+    if(ds.f===a||ds.f===p.b) return; if(!a) p.a=ds.f; else {p.a=a;p.b=ds.f;} render();},
+  slot:ds=>{const p=S.pick[S.div]||(S.pick[S.div]={}); p[ds.slot]=null; render();},
+  win:async ds=>{if(!ds.w||!ds.l)return; const d=S.div; S.pick[d]={};
+    const ok=await w(()=>S.db.collection('bouts').add({tid:S.tid,div:d,w:ds.w,l:ds.l,at:Date.now()}));
+    if(ok) toast(`${fname(ds.w)} takes the kill.`);},
+  undo:ds=>{if(!arm('undo:'+ds.id))return; w(()=>S.db.doc('bouts/'+ds.id).delete());},
+  timer:ds=>{const d=S.div,tm=timerOf(S.tid,d);
+    if(ds.op==='start') saveDiv(d,{timer:{running:true,endsAt:Date.now()+tm.ms}});
+    else if(ds.op==='pause') saveDiv(d,{timer:{running:false,remain:tm.ms}});
+    else saveDiv(d,{timer:{running:false,remain:tm.len}});},
+  seed:ds=>seedFromPit(ds.div),
+  mode:ds=>{if(ds.v===(isTally(S.tid,S.div)?'tally':'bouts'))return; saveDiv(S.div,{mode:ds.v}); toast(ds.v==='tally'?'Scoring by reeve tally. Logged bouts are kept but not counted.':'Scoring by logged bouts. Reeve tallies are kept but not counted.');},
+  tstep:ds=>setTally(ds.f,tallyN(S.tid,S.div,ds.f)+Number(ds.v)),
+  reopen:ds=>{if(!arm('reopen:'+ds.div))return; saveDiv(ds.div,{bracket:null});},
+  mwin:ds=>{const dv=divDoc(S.tid,ds.div); if(!dv?.bracket)return; const W={...(dv.bracket.w||{})}; W[ds.m]=W[ds.m]===ds.f?null:ds.f; saveDiv(ds.div,{bracket:{...dv.bracket,w:W}});},
+  editseeds:ds=>{S.editSeeds[ds.div]=!S.editSeeds[ds.div];render();},
+  togdiv:ds=>{const s=S.signups.find(x=>x.id===ds.su); if(!s)return; const cur=s.divs||[];
+    const next=cur.includes(ds.div)?cur.filter(x=>x!==ds.div):[...cur,ds.div];
+    if(!next.length){toast('A fighter needs at least one division. Use Remove to drop them.');return;}
+    w(()=>S.db.doc('signups/'+s.id).update({divs:next}));},
+  rmsu:ds=>{if(!arm('rmsu:'+ds.su))return; w(()=>S.db.doc('signups/'+ds.su).delete());},
+  scope:ds=>{S.board.scope=ds.v;saveLocal();render();},
+  orkpick:ds=>{const f=ds.form||'su'; if(ds.p) $('#'+f+'Name').value=ds.p; $('#'+f+'Park').value=ds.park||''; $('#'+f+'Ork').value=ds.id;
+    showMatchIn(f,`<span class="ok">Matched in the ORK.</span> ${esc($('#'+f+'Name').value)} · ${esc(ds.park)} · ${orkLink(ds.id)}`);},
+  delT:async()=>{const t=T(); if(!t||!arm('delT:'+t.id))return; const tid=t.id;
+    const docs=[...S.bouts.filter(b=>b.tid===tid).map(b=>'bouts/'+b.id),...signupsFor(tid).map(s=>'signups/'+s.id),...Object.keys(S.tallies).filter(k=>S.tallies[k].tid===tid).map(k=>'tallies/'+k),...Object.keys(S.recs).filter(k=>S.recs[k].tid===tid).map(k=>'recs/'+k),...S.requests.filter(r=>r.tid===tid).map(r=>'requests/'+r.id),...Object.keys(S.divs).filter(k=>S.divs[k].tid===tid).map(k=>'divisions/'+k)];
+    toast('Deleting…');
+    const still=new Set(S.signups.filter(s=>s.tid!==tid).map(s=>s.fid));
+    const orphan=Object.keys(S.fighters).filter(f=>!still.has(f)).map(f=>'fighters/'+f);
+    for(const p of [...docs,...orphan]){ if(!await w(()=>S.db.doc(p).delete())) return; }
+    await w(()=>S.db.doc('results/'+tid).delete()); await w(()=>S.db.doc('tournaments/'+tid).delete()); S.tid=null; toast('Tournament deleted.');},
+};
+document.addEventListener('click',e=>{const el=e.target.closest('[data-act]'); if(!el||el.disabled) return;
+  const a=el.dataset.act; if(WRITE_ACTS.has(a)&&!S.isMarshal&&!(a==='orkpick'&&el.dataset.form==='rq')){toast('Sign in as a marshal to change the lists.');return;}
+  if(lockedAct(a)) return;
+  (H[a]||H2[a])?.(el.dataset,el,e);});
+document.addEventListener('change',e=>{const t=e.target;
+  if(t.id==='tpick'){S.tid=t.value;S.pick={};S.editSeeds={};setUrlT(S.tid);render();}
+  else if(t.id==='pdiv'){S.pdiv=t.value;render();}
+  else if(t.id==='boardDiv'){S.board.div=t.value;saveLocal();render();}
+  else if(t.id==='boardKills'){S.board.kills=t.checked;saveLocal();render();}
+  else if(t.dataset.tally!==undefined){if(lockedInput())return;setTally(t.dataset.tally,t.value);}
+  else if(t.id==='tFormat'){const el=t.value==='elim'; $('#tMinField').hidden=el;
+    $('#tFormatHelp').textContent=el?'Bracket: no pit. Every fighter in a division is drawn into one single-elimination bracket; the semifinal losers fight for 3rd.':'Pool and Bracket: each division fights a timed winner-stays pit, then the top 4 fight a bracket.';}
+  else if(t.id==='setFormat'){const tid=S.tid, has=S.bouts.length||Object.values(S.tallies).some(x=>x.tid===tid)||Object.keys(S.divs).some(k=>S.divs[k].tid===tid&&(S.divs[k].bracket||S.divs[k].elim));
+    if(has){toast('The format can’t change once pits or brackets have results. Start a new tournament instead.');render();return;}
+    w(()=>S.db.doc('tournaments/'+tid).update({format:t.value}));}
+  else if(t.id==='setLevel'){w(()=>S.db.doc('tournaments/'+S.tid).update({level:t.value}));}
+  else if(t.id==='awLevel'){w(()=>S.db.doc('tournaments/'+S.tid).update({level:t.value}));}
+  else if(t.id==='tPark'){const l=PARK_LEVEL[t.value.trim()]; if(l) $('#tLevel').value=l;}
+  else if(t.id==='setMin'){const v=Math.max(1,Math.min(120,parseInt(t.value)||10)); w(()=>S.db.doc('tournaments/'+S.tid).update({pitMin:v}));}
+  else if(t.dataset.seed){if(lockedInput())return;const d=t.dataset.seed,dv=divDoc(S.tid,d); if(!dv?.bracket)return; const seeds=[0,1,2,3].map(i=>dv.bracket.seeds[i]||null); seeds[+t.dataset.i]=t.value||null; saveDiv(d,{bracket:{seeds,w:{}}});}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.tally!==undefined){e.preventDefault();e.target.blur();}});
+$('#tForm').addEventListener('submit',async e=>{e.preventDefault();
+  const divs=[...document.querySelectorAll('#tDivs input:checked')].map(i=>i.value); if(!divs.length){toast('Pick at least one division.');return;}
+  const data={name:$('#tName').value.trim(),date:$('#tDate').value,park:$('#tPark').value.trim(),level:$('#tLevel').value,format:$('#tFormat').value==='elim'?'elim':'pit',pitMin:Math.max(1,parseInt($('#tMin').value)||10),divs,signupsOpen:true,at:Date.now()};
+  if(!data.name)return; if(!S.db){toast('The shared tournament store isn’t available in this view.');return;}
+  const ref=S.db.collection('tournaments').doc();
+  if(await w(()=>ref.set(data))){S.tid=ref.id;setUrlT(S.tid);S.tab='signups';$('#newT').hidden=true;$('#tName').value='';render();toast(`${data.name} is on the lists.`);}
+});
+async function signUp({name,park,orkId,divs}){
+  const lc=name.toLowerCase(); const F=Object.entries(S.fighters);
+  let found=orkId?F.find(([,f])=>f.orkId===orkId):null;
+  if(!found) found=F.find(([,f])=>(f.name||'').toLowerCase()===lc&&(!orkId||!f.orkId||f.orkId===orkId));
+  let fid;
+  if(found){fid=found[0]; const f=found[1]; const patch={};
+    if(park&&park!==f.park) patch.park=park; if(orkId&&orkId!==f.orkId) patch.orkId=orkId; if(name!==f.name) patch.name=name;
+    if(Object.keys(patch).length&&!await w(()=>S.db.doc('fighters/'+fid).update(patch)))return false;}
+  else{const ref=S.db?S.db.collection('fighters').doc():null; if(!ref){toast('The shared tournament store isn’t available in this view.');return false;} fid=ref.id; if(!await w(()=>ref.set({name,park,orkId:orkId||null})))return false;}
+  const sid=S.tid+'__'+fid, ex=S.signups.find(s=>s.id===sid);
+  const nd=[...new Set([...(ex?.divs||[]),...divs])];
+  return w(()=>S.db.doc('signups/'+sid).set({tid:S.tid,fid,divs:nd,at:ex?.at||Date.now()}));
+}
+$('#suForm').addEventListener('submit',async e=>{e.preventDefault();
+  const name=$('#suName').value.trim(); if(!name)return; const park=$('#suPark').value.trim();
+  const divs=[...document.querySelectorAll('#suDivs input:checked')].map(i=>i.value); if(!divs.length){toast('Pick at least one division.');return;}
+  const orkRaw=$('#suOrk').value.trim(), orkId=parseOrk(orkRaw);
+  if(orkRaw&&!orkId){toast('That doesn’t look like an ORK profile link or player ID.');return;}
+  if(await signUp({name,park,orkId,divs})){$('#suName').value='';$('#suOrk').value='';$('#suMatch').hidden=true;$('#suName').focus();toast(`${name} is signed up.`);}
+});
+
+/* ---------- ORK lookup ---------- */
+function showMatchIn(f,html){const b=$('#'+f+'Match');b.innerHTML=html;b.hidden=!html;}
+function showMatch(html){showMatchIn('su',html);}
+function lookupName(final){
+  const name=$('#suName').value.trim(), lc=name.toLowerCase(); if(!lc){showMatch('');return;}
+  const known=Object.values(S.fighters).find(f=>(f.name||'').toLowerCase()===lc&&f.orkId);
+  const hits=S.roster.players.filter(r=>r.p.toLowerCase()===lc);
+  if(known&&(hits.length<=1||hits.some(h=>h.id===known.orkId))){$('#suPark').value=known.park||$('#suPark').value;$('#suOrk').value=known.orkId;showMatch(`<span class="ok">Returning fighter.</span> ${esc(known.name)} · ${esc(known.park||'')} · ${orkLink(known.orkId)}`);return;}
+  if(hits.length===1){const h=hits[0];$('#suPark').value=h.park;$('#suOrk').value=h.id;showMatch(`<span class="ok">Matched in the ORK.</span> ${esc(h.p)} · ${esc(h.park)} · ${orkLink(h.id)}`);return;}
+  if(hits.length>1){showMatch(`More than one ORK player uses this persona. Pick one: ${hits.map(h=>`<button type="button" class="btn sm ghost" data-act="orkpick" data-id="${esc(h.id)}" data-park="${esc(h.park)}">${esc(h.park)} · #${esc(h.id)}</button>`).join('')}`);return;}
+  if(final&&S.roster.players.length&&!parseOrk($('#suOrk').value)) showMatch(`Not in the preloaded ORK list. Paste their ORK profile link if they have one, or sign them up without it.`);
+  else if(!final) showMatch('');
+}
+$('#suName').addEventListener('input',()=>lookupName(false));
+$('#suName').addEventListener('change',()=>lookupName(true));
+$('#suOrk').addEventListener('change',()=>{const id=parseOrk($('#suOrk').value); if(!id)return;
+  const f=Object.values(S.fighters).find(x=>x.orkId===id), r=S.roster.players.find(x=>x.id===id); const hit=f?{p:f.name,park:f.park}:r;
+  if(hit){ if(!$('#suName').value.trim()) $('#suName').value=hit.p; if(hit.park) $('#suPark').value=hit.park; showMatch(`<span class="ok">ORK #${esc(id)}</span> is ${esc(hit.p)} of ${esc(hit.park||'unknown park')}. ${orkLink(id)}`);}
+  else showMatch(`ORK #${esc(id)} will be saved with this fighter. ${orkLink(id)}`);});
+
+/* ---------- Field Marshal standalone: Firebase, marshals, player signups, live ORK ---------- */
+const ORK='https://ork.amtgard.com/orkservice/Json/index.php';
+const STONE_RIVERS_PARKS={246:'Siar Geata',1033:'Anduril',919:'Ashen Grove',672:'Ethereal Hollow',817:'Quixotic Valley'};
+const WRITE_ACTS=new Set(['ewin','draw','orksend','finalize','reopenT','win','undo','timer','seed','reopen','mwin','togdiv','rmsu','delT','mode','tstep','rec','pick','slot','newT','editseeds','orkpick','approve','decline','addMarshal','rmMarshal','orkroster','orkwar']);
+Object.assign(S,{user:null,isMarshal:false,requests:[],marshals:[],privSubs:null,autoWar:{},warBusy:false,lastReq:'',lastApp:''});
+
+function renderAuth(){const el=$('#auth'); if(!el) return; if(!S.auth){el.innerHTML='';return;}
+  if(!S.user){el.innerHTML='<button class="btn ghost" data-act="signin">Marshal sign-in</button>';return;}
+  const em=esc(S.user.email||'');
+  el.innerHTML=`<span>${S.isMarshal?'<b>Marshal</b> · ':''}${em}</span><button class="btn sm ghost" data-act="signout">Sign out</button>`
+    +(S.isMarshal?'':`<span style="flex-basis:100%">Not on the marshal list. Ask a marshal to add ${em}.</span>`);}
+
+/* Hide or disable editing controls for non-marshals. Marks what it changed so signing in restores it,
+   including the header's static "New tournament" button. */
+function gate(){
+  if(S.isMarshal){document.querySelectorAll('[data-gated]').forEach(el=>{if(el.dataset.gated==='h')el.hidden=false;else el.disabled=false;delete el.dataset.gated;});return;}
+  document.querySelectorAll('.wrap [data-act]').forEach(el=>{const a=el.dataset.act; if(el.dataset.gated) return;
+    if(a==='mwin'||a==='ewin'||a==='togdiv'){if(!el.disabled){el.disabled=true;el.dataset.gated='d';}}
+    else if(WRITE_ACTS.has(a)&&!(a==='orkpick'&&el.dataset.form==='rq')){if(!el.hidden){el.hidden=true;el.dataset.gated='h';}}});
+  document.querySelectorAll('[data-tally],[data-seed]').forEach(el=>{if(!el.disabled&&!el.dataset.gated){el.disabled=true;el.dataset.gated='d';}});
+}
+
+function renderStandalone(){
+  const t=T(); if(!t) return; const open=t.signupsOpen!==false;
+  $('#rqClosed').hidden=open; $('#rqForm').hidden=!open;
+  if(!S.isMarshal) return;
+  const rq=S.requests.filter(r=>r.tid===S.tid).sort((a,b)=>(a.at||0)-(b.at||0));
+  const reqHtml=`<h2>Player signups waiting · <span class="num">${rq.length}</span></h2>`+(rq.length?rq.map(r=>{const k='decline:'+r.id;
+    return `<div class="req"><div class="who"><b>${esc(r.name)}</b><small>${esc(r.park||'Park not given')} · ${r.orkId?orkLink(r.orkId):'No ORK ID'} · ${(r.divs||[]).map(d=>esc(DIV[d]?.n||d)).join(', ')}</small></div>
+      <button class="btn sm" data-act="approve" data-id="${esc(r.id)}">Approve</button>
+      <button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="decline" data-id="${esc(r.id)}">${S.confirm===k?'Tap again to decline':'Decline'}</button></div>`;}).join('')
+    :`<p class="none">${open?'No player signups waiting. Players can sign up from this page without an account.':'Player signups are closed for this tournament.'}</p>`);
+  if(reqHtml!==S.lastReq){S.lastReq=reqHtml;$('#reqList').innerHTML=reqHtml;}
+  const me=(S.user?.email||'').toLowerCase();
+  const appHtml=`<h2>Field Marshal settings</h2>
+    <div class="checks" style="margin-bottom:16px"><label><input type="checkbox" id="setOpen" ${open?'checked':''}> Players can sign themselves up for this tournament</label></div>
+    <div class="lbl" style="margin-bottom:4px">Marshals</div>
+    <ul class="mlist">${S.marshals.map(m=>{const k='rmM:'+m;return `<li><span>${esc(m)}${m===me?' <span class="muted">(you)</span>':''}</span>${m===me?'':`<button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="rmMarshal" data-m="${esc(m)}">${S.confirm===k?'Tap again to remove':'Remove'}</button>`}</li>`;}).join('')}</ul>
+    <div class="row" style="margin-bottom:18px"><div class="field"><label for="mEmail">Add a marshal by their Google email</label><input id="mEmail" type="email" autocomplete="off" placeholder="reeve@gmail.com"></div><button class="btn" data-act="addMarshal">Add marshal</button></div>
+    <div class="lbl" style="margin-bottom:4px">ORK data</div>
+    <p class="foot" style="margin:0 0 8px">Persona suggestions: ${S.roster.players.length} players${S.roster.updatedAt?', updated '+esc(S.roster.updatedAt):''}. Warrior levels ${S.awards.updatedAt?'updated '+esc(S.awards.updatedAt):'not loaded yet'}.</p>
+    <div class="row" style="margin-bottom:18px"><button class="btn ghost" data-act="orkroster">Refresh park rosters from the ORK</button><button class="btn ghost" data-act="orkwar">Refresh Warrior levels for this tournament</button></div>
+    <div class="field"><label for="importFile">Import a Field Marshal backup (.json)</label><input id="importFile" type="file" accept="application/json,.json"></div>`;
+  if(appHtml!==S.lastApp){S.lastApp=appHtml;$('#appSettings').innerHTML=appHtml;}
+}
+
+/* ---------- ORK (live) ---------- */
+/* The ORK doesn't allow browsers on other sites to read it, so the page asks its own host first:
+   Netlify's _redirects file relays /ork-api to the ORK. Direct is the fallback for other hosts. */
+const ORK_BASES=[/^https?:$/.test(location.protocol)?'/ork-api':null,ORK].filter(Boolean);
+async function orkGet(params){let last;
+  for(const base of ORK_BASES){
+    try{const u=new URL(base,location.href);Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
+      const r=await fetch(u.toString(),{headers:{Accept:'application/json'}}); if(!r.ok) throw new Error('HTTP '+r.status);
+      return JSON.parse(await r.text());}
+    catch(e){last=e;}}
+  throw last;}
+async function orkFind(f){
+  const name=$('#'+f+'Name').value.trim(); if(name.length<2){showMatchIn(f,'Type a persona first, then search.');return;}
+  showMatchIn(f,'Searching the ORK…');
+  try{const d=await orkGet({call:'SearchService/Player',type:'All',search:name,limit:'25'});
+    const res=(Array.isArray(d.Result)?d.Result:[]).filter(x=>!/walk ?up/i.test(x.Persona||'')&&String(x.Suspended??'0')==='0');
+    res.sort((a,b)=>(String(b.KingdomId)==='21')-(String(a.KingdomId)==='21'));
+    if(!res.length){showMatchIn(f,'No ORK players found with that name. Check the spelling, or paste the ORK profile link.');return;}
+    showMatchIn(f,`<div class="hits">${res.slice(0,8).map(x=>`<button type="button" class="hit" data-act="orkpick" data-form="${f}" data-id="${esc(x.MundaneId)}" data-p="${esc(x.Persona)}" data-park="${esc(x.ParkName||'')}"><span><b>${esc(x.Persona)}</b> <small>${esc(x.ParkName||'')} · ${esc(x.KAbbr||x.KingdomName||'')}</small></span><small>#${esc(x.MundaneId)}</small></button>`).join('')}</div>`);
+  }catch(e){console.error(e);showMatchIn(f,'Couldn’t reach the ORK right now. Paste the ORK profile link instead.');}
+}
+function findAwards(d){const q=[d];while(q.length){const v=q.shift();
+  if(Array.isArray(v)){if(v.some(o=>o&&typeof o==='object'&&'AwardId' in o))return v;v.forEach(x=>q.push(x));}
+  else if(v&&typeof v==='object')Object.values(v).forEach(x=>q.push(x));}return [];}
+async function orkWarrior(id){const d=await orkGet({call:'Player/AwardsForPlayer','request[MundaneId]':id});
+  let w=0,date='';findAwards(d).forEach(a=>{if(String(a.AwardId)!=='27')return;const r=Number(a.Rank)||0;
+    if(r>w){w=r;date=a.Date||'';}else if(r===w&&(a.Date||'')>date)date=a.Date||'';});
+  return {w,date};}
+const stamp=()=>new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+async function refreshWarrior(manual){
+  if(S.warBusy||!S.db) return; const ids=[...new Set(signupsFor(S.tid).map(s=>fork(s.fid)).filter(Boolean))].filter(id=>manual||!S.awards.players[id]);
+  if(!ids.length){if(manual)toast('No fighters with ORK IDs in this tournament yet.');return;}
+  S.warBusy=true; if(manual) toast(`Checking ${ids.length} ORK profile${ids.length===1?'':'s'}…`);
+  const upd={}; let failed=0;
+  for(const id of ids){try{upd[id]=await orkWarrior(id);}catch(e){failed++;console.error(e);}}
+  S.warBusy=false;
+  if(Object.keys(upd).length){const players={...S.awards.players,...upd};
+    if(await w(()=>S.db.doc('ork/awards').set({updatedAt:stamp(),players},{merge:true}))&&manual) toast(`Updated Warrior levels for ${Object.keys(upd).length} fighter${Object.keys(upd).length===1?'':'s'}.`);}
+  if(failed) toast(`Couldn’t reach the ORK for ${failed} fighter${failed===1?'':'s'}. Try again later.`);
+}
+function autoWarrior(){if(S.isMarshal&&S.tid&&!S.autoWar[S.tid]){S.autoWar[S.tid]=true;setTimeout(()=>refreshWarrior(false),0);}}
+async function refreshRoster(){
+  toast('Loading park rosters from the ORK…'); const seen=new Set(), players=[];
+  try{for(const id of Object.keys(STONE_RIVERS_PARKS)){const d=await orkGet({call:'Report/GetActivePlayers','request[ParkId]':id});
+    (Array.isArray(d.ActivePlayerSummary)?d.ActivePlayerSummary:[]).forEach(x=>{const mid=String(x.MundaneId);
+      if(!mid||seen.has(mid)||/walk ?up/i.test(x.Persona||''))return; seen.add(mid);
+      players.push({id:mid,p:String(x.Persona||'').replace(/\s+/g,' ').trim(),park:x.ParkName||''});});}
+  }catch(e){console.error(e);toast('Couldn’t reach the ORK. Try again later.');return;}
+  players.sort((a,b)=>a.p.toLowerCase().localeCompare(b.p.toLowerCase()));
+  if(await w(()=>S.db.doc('ork/roster').set({updatedAt:stamp(),source:'ORK active players, Stone Rivers parks',players}))) toast(`Loaded ${players.length} ORK players.`);
+}
+
+/* ---------- send recommendations straight to the ORK (web app only) ----------
+   Uses the ORK's own calls: Authorization/Authorize for a session token, then
+   Player/AddAwardRecommendation (AwardId 27 = Order of the Warrior; the ORK maps it to the
+   player's kingdom award). Everything is POSTed through the /ork-api relay so the password
+   never appears in a web address. The token lives only in this page's memory. */
+S.orkAuth=null; S.orkBusy=null; S.lastOrkAuth='';
+async function orkPost(fields){const body=new URLSearchParams();Object.entries(fields).forEach(([k,v])=>body.append(k,v));let last;
+  for(const base of ORK_BASES){try{const r=await fetch(new URL(base,location.href).toString(),{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded',Accept:'application/json'},body});
+      if(!r.ok) throw new Error('HTTP '+r.status); return JSON.parse(await r.text());}catch(e){last=e;}}
+  throw last;}
+function orkStat(d){
+  if(d&&d.Status&&typeof d.Status==='object') return {code:Number(d.Status.Status),msg:d.Status.Detail||d.Status.Error||''};
+  if(d&&typeof d.Status==='number') return {code:d.Status,msg:d.Detail||d.Error||''};
+  return {code:-1,msg:(d&&(d.ErrorMessage||d.Error))||'Unexpected reply from the ORK.'};}
+const plain=s=>String(s||'').replace(/<[^>]*>/g,'').replace(/\s+/g,' ').trim();
+function setOrkMsg(t){const el=$('#orkMsg'); if(el) el.textContent=t;}
+function renderOrkAuth(){const el=$('#orkAuth'); if(!el||!S.isMarshal) return;
+  const html=S.orkAuth
+    ?`<div class="row" style="justify-content:space-between;align-items:center"><div><h2 style="margin:0 0 4px">Send recommendations to the ORK</h2>
+        <p class="foot" style="margin:0">Signed in to the ORK as <b>${esc(S.orkAuth.user)}</b>. Recommendations you send are filed under this account, the same as using the ORK’s Recommend form.</p></div>
+        <button class="btn ghost" data-act="orklogout">Sign out of the ORK</button></div>`
+    :`<h2 style="margin:0 0 4px">Send recommendations to the ORK</h2>
+      <p class="foot" style="margin:0 0 10px">Sign in with your own ORK account to file recommendations from here. They’re filed under your name. Your password goes to the ORK and isn’t saved; the sign-in lasts until you reload or close this page.</p>
+      <form id="orkLoginForm" class="row"><div class="field"><label for="orkUser">ORK username</label><input id="orkUser" autocomplete="username" required></div>
+        <div class="field"><label for="orkPass">ORK password</label><input id="orkPass" type="password" autocomplete="current-password" required></div>
+        <button class="btn" type="submit">Sign in to the ORK</button></form>
+      <p id="orkMsg" class="foot" role="status" style="margin:6px 0 0"></p>`;
+  const sig=S.orkAuth?'in:'+S.orkAuth.user:'out'; if(sig!==S.lastOrkAuth){S.lastOrkAuth=sig; el.innerHTML=html;}
+}
+document.addEventListener('submit',async e=>{if(e.target.id!=='orkLoginForm')return; e.preventDefault();
+  const u=$('#orkUser').value.trim(), p=$('#orkPass').value; if(!u||!p) return; setOrkMsg('Signing in to the ORK…');
+  try{const d=await orkPost({call:'Authorization/Authorize','request[UserName]':u,'request[Password]':p,'request[Client]':'Field Marshal'});
+    const pw=$('#orkPass'); if(pw) pw.value='';
+    const st=orkStat(d);
+    if(st.code===0&&d.Token){S.orkAuth={token:String(d.Token),user:u,id:String(d.UserId||'')};render();toast('Signed in to the ORK.');}
+    else setOrkMsg(plain(st.msg)||'The ORK didn’t accept that username and password.');
+  }catch(err){console.error(err);setOrkMsg('Couldn’t reach the ORK. Try again in a moment.');}
+});
+function orkSendButton(r){
+  if(!S.isMarshal||r.state!=='recommend'||!fork(r.fid)) return '';
+  if(S.recs[S.tid+'__'+r.fid]?.via==='ork') return '';
+  const k='orksend:'+r.fid, busy=S.orkBusy===r.fid;
+  return `<button class="btn sm ${S.confirm===k?'armed':''}" data-act="orksend" data-f="${esc(r.fid)}" ${busy?'disabled':''}>${busy?'Sending…':S.confirm===k?`Tap again to send Warrior ${r.next}`:`Send Warrior ${r.next} to ORK`}</button>`;
+}
+/* ---------- import a backup ---------- */
+async function importBackup(file){
+  let data; try{data=JSON.parse(await file.text());}catch(e){toast('That file isn’t a Field Marshal backup.');return;}
+  const allowed=['tournaments','fighters','signups','divisions','bouts','tallies','recs','ork','results'];
+  const ops=[];allowed.forEach(c=>{const docs=data[c];if(docs&&typeof docs==='object')Object.entries(docs).forEach(([id,d])=>{if(d&&typeof d==='object'&&!id.includes('/'))ops.push([c,id,d]);});});
+  if(!ops.length){toast('Nothing to import in that file.');return;}
+  toast(`Importing ${ops.length} records…`);
+  try{let b=S.db.batch(),n=0;for(const [c,id,d] of ops){b.set(S.db.doc(c+'/'+id),d);if(++n%400===0){await b.commit();b=S.db.batch();}}await b.commit();toast(`Imported ${ops.length} records.`);}
+  catch(e){console.error(e);toast(e.code==='permission-denied'?'Sign in as a marshal to import.':'The import stopped partway. Try again.');}
+}
+
+const H2={
+  signin:async()=>{try{await S.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());}
+    catch(e){if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request')return;
+      toast(e.code==='auth/unauthorized-domain'?'This web address can’t sign in yet. Add it in Firebase under Authentication → Settings → Authorized domains.':'Sign-in didn’t finish. Try again.');}},
+  signout:()=>S.auth.signOut(),
+  approve:async ds=>{const r=S.requests.find(x=>x.id===ds.id); if(!r||r.tid!==S.tid) return;
+    if(await signUp({name:r.name,park:r.park||'',orkId:parseOrk(r.orkId||''),divs:(r.divs||[]).filter(d=>DIV[d])})){await w(()=>S.db.doc('requests/'+r.id).delete());toast(`${r.name} is signed up.`);}},
+  decline:ds=>{if(!arm('decline:'+ds.id))return; w(()=>S.db.doc('requests/'+ds.id).delete());},
+  addMarshal:async()=>{const e=$('#mEmail').value.trim().toLowerCase();
+    if(!/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(e)){toast('Enter a full email address.');return;}
+    if(await w(()=>S.db.doc('marshals/'+e).set({email:e,addedBy:S.user?.email||'',at:Date.now()}))){$('#mEmail').value='';toast(`${e} can now marshal.`);}},
+  rmMarshal:ds=>{if(!arm('rmM:'+ds.m))return; w(()=>S.db.doc('marshals/'+ds.m).delete());},
+  orkfind:ds=>orkFind(ds.form),
+  orkroster:()=>refreshRoster(),
+  orkwar:()=>refreshWarrior(true),
+};
+document.addEventListener('change',e=>{const t=e.target;
+  if(t.id==='importFile'&&t.files&&t.files[0]){importBackup(t.files[0]);t.value='';}
+  else if(t.id==='setOpen'){w(()=>S.db.doc('tournaments/'+S.tid).update({signupsOpen:t.checked}));}
+});
+$('#rqForm').addEventListener('submit',async e=>{e.preventDefault(); const t=T(); if(!t||!S.db) return;
+  const name=$('#rqName').value.trim(), park=$('#rqPark').value.trim(), orkRaw=$('#rqOrk').value.trim(), orkId=parseOrk(orkRaw);
+  const divs=[...document.querySelectorAll('#rqDivs input:checked')].map(i=>i.value);
+  if(!name) return; if(!divs.length){toast('Pick at least one division.');return;}
+  if(orkRaw&&!orkId){toast('That doesn’t look like an ORK profile link.');return;}
+  try{await S.db.collection('requests').add({tid:t.id,name:name.slice(0,80),park:park.slice(0,60),orkId:orkId||null,divs,at:Date.now()});
+    $('#rqForm').reset(); showMatchIn('rq',''); toast('Signup sent. A marshal will confirm it at check-in.');}
+  catch(err){console.error(err);toast(err.code==='permission-denied'?'Signups for this tournament are closed.':'Couldn’t send your signup. Check your connection and try again.');}
+});
+
+function subPrivate(){const db=S.db; if(!db) return;
+  if(S.isMarshal&&!S.privSubs){const fail=e=>console.error(e);S.privSubs=[
+    db.collection('recs').onSnapshot(s=>{S.recs=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));render();},fail),
+    db.collection('requests').onSnapshot(s=>{S.requests=s.docs.map(d=>({id:d.id,...d.data()}));render();},fail),
+    db.collection('marshals').onSnapshot(s=>{S.marshals=s.docs.map(d=>d.id).sort();render();},fail)];}
+  else if(!S.isMarshal&&S.privSubs){S.privSubs.forEach(u=>u());S.privSubs=null;S.recs={};S.requests=[];S.marshals=[];S.lastReq=S.lastApp='';}
+}
+
+H2.orklogout=async()=>{const t=S.orkAuth?.token; S.orkAuth=null; render(); toast('Signed out of the ORK.');
+  if(t){try{await orkPost({call:'Authorization/DestroySession','request[Token]':t});}catch(e){}}};
+H2.orksend=async ds=>{
+  if(!S.orkAuth){toast('Sign in to the ORK at the top of this tab first.');$('#orkAuth')?.scrollIntoView({behavior:'smooth',block:'start'});return;}
+  const r=recsFor(S.tid).find(x=>x.fid===ds.f); if(!r||r.state!=='recommend') return;
+  if(!arm('orksend:'+ds.f)) return;
+  S.orkBusy=ds.f; render();
+  const mark=async note=>{const id=S.tid+'__'+ds.f;const data={tid:S.tid,fid:ds.f,status:'submitted',lvl:r.next,via:'ork',orkUser:S.orkAuth?.user||'',at:Date.now(),...(note?{note}:{})};
+    S.recs[id]=data; await w(()=>S.db.doc('recs/'+id).set(data));};
+  try{const d=await orkPost({call:'Player/AddAwardRecommendation','request[Token]':S.orkAuth.token,'request[MundaneId]':fork(ds.f),
+      'request[AwardId]':'27','request[Rank]':String(r.next),'request[Reason]':recText(r)});
+    const st=orkStat(d), msg=plain(st.msg);
+    if(st.code===0){await mark();toast(`Sent. ${fname(ds.f)} is recommended for Warrior ${r.next} in the ORK.`);}
+    else if(st.code===2||(st.code===5&&!msg)){S.orkAuth=null;toast('Your ORK sign-in expired. Sign in again, then resend.');}
+    else if(/already recommended/i.test(msg)){await mark('already in ORK');toast('You already recommended that level in the ORK. Marked as sent.');}
+    else toast(msg||'The ORK didn’t accept that recommendation.');
+  }catch(e){console.error(e);toast('Couldn’t reach the ORK. Nothing was sent. Try again.');}
+  finally{S.orkBusy=null;render();}
+};
+
+
+/* ---------- live data ---------- */
+(async()=>{
+  const cfg=window.FIELD_MARSHAL_FIREBASE;
+  if(!window.firebase||!cfg||!cfg.apiKey||/PASTE/i.test(cfg.apiKey)){S.offline='config';render();return;}
+  firebase.initializeApp(cfg); const db=firebase.firestore(); S.db=db; S.auth=firebase.auth();
+  render();
+  S.auth.onAuthStateChanged(u=>{S.user=u; if(S.unMarshal){S.unMarshal();S.unMarshal=null;} S.isMarshal=false; subPrivate();
+    if(u&&u.email){S.unMarshal=db.doc('marshals/'+u.email.toLowerCase()).onSnapshot(s=>{S.isMarshal=s.exists;subPrivate();render();},e=>{console.error(e);S.isMarshal=false;subPrivate();render();});}
+    render();});
+  const fail=e=>{console.error(e);if(e&&e.code==='unavailable')toast('Lost the live connection. Reload the page to reconnect.');};
+  const mark=k=>{S.seen.add(k); if(S.seen.size>=5) S.ready=true;};
+  db.collection('tournaments').onSnapshot(s=>{
+    S.tournaments=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.at||0)-(a.at||0));
+    if(deepT&&tByid(deepT)){S.tid=deepT;deepT=null;}
+    if(!S.tid||!tByid(S.tid)) S.tid=S.tournaments[0]?.id||null; setUrlT(S.tid); mark('t'); render();},e=>{S.offline=true;fail(e);render();});
+  db.collection('fighters').onSnapshot(s=>{S.fighters=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));mark('f');render();},fail);
+  db.collection('signups').onSnapshot(s=>{S.signups=s.docs.map(d=>({id:d.id,...d.data()}));mark('s');render();},fail);
+  db.collection('divisions').onSnapshot(s=>{S.divs=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));mark('d');render();},fail);
+  db.collection('tallies').onSnapshot(s=>{S.tallies=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));render();},fail);
+  db.doc('ork/awards').onSnapshot(s=>{const d=s.exists?s.data():null;S.awards={players:(d&&d.players)||{},updatedAt:d?.updatedAt||''};render();},fail);
+  db.doc('ork/roster').onSnapshot(s=>{const d=s.exists?s.data():null;S.roster={players:(d&&Array.isArray(d.players))?d.players:[],updatedAt:d?.updatedAt||''};render();},fail);
+  db.collection('results').onSnapshot(s=>{S.results=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));S.resultsSeen=true;render();},fail);
+})();
+
+</script>
+</body>
+</html>
