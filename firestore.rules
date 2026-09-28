@@ -48,6 +48,26 @@ service cloud.firestore {
         && (!('feedback' in d) || (d.feedback is string && d.feedback.size() <= 5000))
         && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('status', 'open') != 'final';
     }
+    function isHeadJudge(tid) {
+      return signedIn() && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('bb', {}).get('head', '') == myEmail();
+    }
+    function bardsOpen(tid) {
+      return exists(/databases/$(database)/documents/tournaments/$(tid))
+        && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('kind', 'combat') == 'bards'
+        && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('signupsOpen', true) == true
+        && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('status', 'open') != 'final';
+    }
+    function validBard(d) {
+      return d.keys().hasOnly(['tid', 'uid', 'name', 'park', 'orkId', 'at'])
+        && d.keys().hasAll(['tid', 'uid', 'name', 'at'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && (!('park' in d) || (d.park is string && d.park.size() <= 60))
+        && (!('orkId' in d) || d.orkId == null || (d.orkId is string && d.orkId.size() <= 12))
+        && d.at is number;
+    }
+    function bbState(tid) {
+      return get(/databases/$(database)/documents/bbr/$(tid)).data;
+    }
     function validRequest(d) {
       return d.keys().hasOnly(['tid', 'name', 'park', 'orkId', 'divs', 'at'])
         && d.keys().hasAll(['tid', 'name', 'divs', 'at'])
@@ -115,6 +135,55 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
       allow write: if isMarshal();
+    }
+
+    // Battle of the Bards.
+    match /bards/{id} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && id == request.resource.data.tid + '__' + request.auth.uid
+        && validBard(request.resource.data)
+        && bardsOpen(request.resource.data.tid);
+      allow update: if isMarshal() || (request.auth != null
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.tid == resource.data.tid
+        && validBard(request.resource.data));
+      allow delete: if isMarshal() || (request.auth != null && resource.data.uid == request.auth.uid);
+    }
+    // Each bard's Google Drive link for a round, only while that round is open for entries.
+    match /bsubs/{id} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.resource.data.keys().hasOnly(['tid', 'uid', 'bid', 'round', 'url', 'note', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.bid == request.resource.data.tid + '__' + request.auth.uid
+        && id == request.resource.data.bid + '__r' + string(request.resource.data.round)
+        && exists(/databases/$(database)/documents/bards/$(request.resource.data.bid))
+        && request.resource.data.url is string && request.resource.data.url.size() <= 500
+        && request.resource.data.url.matches('https://.+')
+        && (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 200))
+        && bbState(request.resource.data.tid).get('phase', '') == 'entries'
+        && bbState(request.resource.data.tid).get('round', -1) == request.resource.data.round;
+      allow delete: if isMarshal();
+    }
+    // Judges' ballots: each judge writes their own, only while the round is open for voting.
+    match /bvotes/{id} {
+      allow read: if isMarshal() || isJudge(resource.data.tid);
+      allow create, update: if isJudge(request.resource.data.tid)
+        && request.resource.data.keys().hasOnly(['tid', 'm', 'round', 'judge', 'pick', 'dragon', 'at'])
+        && request.resource.data.judge == myEmail()
+        && id == request.resource.data.tid + '__' + request.resource.data.m + '__' + myEmail()
+        && request.resource.data.dragon is list && request.resource.data.dragon.size() <= 2
+        && bbState(request.resource.data.tid).get('phase', '') == 'voting'
+        && bbState(request.resource.data.tid).get('round', -1) == request.resource.data.round;
+      allow delete: if isMarshal();
+    }
+    // Public bracket state. Organizers run it; the head judge can break ties.
+    match /bbr/{tid} {
+      allow read: if true;
+      allow write: if isMarshal() || isHeadJudge(tid);
     }
 
     // Player signup requests.

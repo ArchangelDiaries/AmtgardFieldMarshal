@@ -64,7 +64,7 @@ When you change a file later, commit the new files to GitHub and Netlify redeplo
 2. Add your Netlify address (for example `field-marshal-stone-rivers.netlify.app`).
 
 ### 9. First sign-in and import
-1. Open your Netlify address and click **Marshal sign-in**.
+1. Open your Netlify address and click **Sign in**.
 2. On the **Signups** tab, scroll to **Field Marshal settings**.
 3. Under **Import a Field Marshal backup**, choose `field-marshal-backup.json` to bring over the tournaments, fighters and results from the Claude version. It includes the sample "Harvest Tourney"; delete that from its Tournament settings when you don't need it.
 4. Click **Refresh park rosters from the ORK** to load persona suggestions.
@@ -96,8 +96,8 @@ Field Marshal also runs A&S tournaments. In **New tournament**, set **Type** to 
 
 An A&S event has its own tabs:
 - **Entries:** anyone can submit an entry without an account: persona (with "Find me in the ORK"), park, sub-category, title, a documentation writeup and up to 5 links to photos or documents. Each entrant gets a **private feedback link** to save. Marshals can move an entry to another sub-category or withdraw it.
-- **Judging:** the A&S Crat (any marshal) adds judges by Google email and can limit each judge to certain categories. Judges sign in with **Marshal sign-in**, see only the entries they judge, and enter a score in the event's range plus written feedback for each one. Judges never see each other's scores. The crat sees scoring progress for every entry.
-- **Scores:** Dragonmaster standings (the sum of each player's best average per sub-category, top N sub-categories) and results by sub-category. The public sees them once the event is finalized, or earlier if you tick "Show scores to everyone before finalizing". **Finalize event** locks scoring, closes entries, and publishes each entrant's scores and feedback to their private link, with judges shown as Judge 1, Judge 2 and so on.
+- **Judging:** the A&S Crat (any marshal) adds judges by Google email and can limit each judge to certain categories. Judges sign in with **Sign in**, see only the entries they judge, and enter a score in the event's range plus written feedback for each one. Judges never see each other's scores. The crat sees scoring progress for every entry.
+- **Scores:** Dragonmaster standings (the sum of each player's best average per sub-category, top N sub-categories) and results by sub-category. An entry's average is the mean of its judges' scores; when 5 or more judges score an entry, the single highest and single lowest scores are dropped first. The public sees them once the event is finalized, or earlier if you tick "Show scores to everyone before finalizing". **Finalize event** locks scoring, closes entries, and publishes each entrant's scores and feedback to their private link, with judges shown as Judge 1, Judge 2 and so on.
 - **Awards:** entries at or above the threshold flag the next level of their order: Garb → Garber, Art / Literature / Cooking / Bardic → Dragon, Construction → Owl, Rose → Rose. It's one flag per player per order, from their best entry. **Send to ORK**, **Recommend in ORK**, and **Submitted** / **Dismiss** work the same as combat awards. Current levels load from each entrant's ORK profile when they give an ORK ID.
 
 **Updating from an earlier version:** paste the new `firestore.rules` into Firestore → Rules and **Publish**. The A&S tabs need the new rules for entries, judges, scores and feedback.
@@ -113,8 +113,25 @@ If you already set up Field Marshal before the Players and Parks tabs existed, p
 - **Free-plan limits:** the Spark plan allows 50,000 reads and 20,000 writes a day. Every person with the page open reads the tournament data once and then only receives changes, which is well inside the limit for a park or principality event.
 - **Backups:** Firebase keeps the data. To keep your own copy, use Firestore's export, or ask Claude to export it for you.
 
+
+## Battle of the Bards
+
+For the Bardic College's Battle of the Bards, set **Type** to **Battle of the Bards** in **New tournament** and enter the **head judge**'s Google email (they break tied votes; you can change it later on the Judging tab).
+
+- **Bards tab:** bards sign in with Google and enter with their persona, park and ORK profile ("Find me in the ORK"). The ORK profile is what lets you send Order of the Dragon recommendations for them. The same sign-in lets them post their performance each round.
+- **Judging tab (organizer):** add each Ollamh judge by their Google email. Judges sign in with **Sign in**.
+- **Bracket tab:** after signups, **Draw bracket** closes signups and places bards at random in a single-elimination bracket (byes go to the top of the draw). Then, for each round:
+  1. **Open entries.** Each bard still in the bracket posts a Google Drive link to their performance, with an optional title, on the Bards tab. Ask them to set the file to "Anyone with the link can view."
+  2. **Close entries and open voting.** On the Judging tab, each judge votes for a winner in every match. They can also flag either bard for the Order of the Dragon and vote for the round's **Judges' Choice**.
+  3. **Close the round and count votes.** The bard with the most votes advances. Tied votes, including a tied Judges' Choice, go to the head judge, who picks on the Judging tab.
+  4. **Start the next round**, and repeat until the final is decided, then **Finalize event**.
+- **Public view:** anyone can see the bracket, each performance link, the vote counts once a round closes (tie-breaks are marked "head judge"), each round's Judges' Choice, and the champion. Judges' individual ballots stay private.
+- **Awards tab (organizer):** every bard a judge flagged for the Order of the Dragon, or who was named Judges' Choice, is listed whether or not they won. It shows their current Dragon level from the ORK and recommends the next one, with the same **Send to ORK**, **Recommend in ORK**, and **Submitted** / **Dismiss** buttons as the other awards.
+
+**Updating from an earlier version:** paste the new `firestore.rules` into Firestore → Rules and **Publish**. Battle of the Bards needs the new rules for bards, performance links, ballots and the bracket.
+
 ## Links with FORK (event management)
-- Open a tournament directly: `https://srfieldmarshal.netlify.app/?t=<tournament id>`. Add `&tab=signups` (or pits, brackets, board, players, parks, awards; for A&S events entries, judging, asboard, asawards) to open a tab. The address bar updates as you switch tournaments, so you can copy it to share or to link a tournament in FORK.
+- Open a tournament directly: `https://srfieldmarshal.netlify.app/?t=<tournament id>`. Add `&tab=signups` (or pits, brackets, board, players, parks, awards; for A&S events entries, judging, asboard, asawards; for Battle of the Bards bbenter, bbbracket, bbjudge, bbawards) to open a tab. The address bar updates as you switch tournaments, so you can copy it to share or to link a tournament in FORK.
 - Tournaments created from FORK carry `fork: { eventId, name, url }`. The tournament header shows "Part of <event>" with a link back to the FORK event page.
 - No rule changes are needed: marshals can already write any tournament field, and FORK's signup requests use the existing `requests` format.
 

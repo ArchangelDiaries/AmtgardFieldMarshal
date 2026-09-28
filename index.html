@@ -440,7 +440,7 @@ const forkLink=t=>{const f=t&&t.fork; if(!f||!f.name) return '';
   const url=/^https:\/\//.test(f.url||'')?f.url:'';
   return `<span>Part of ${url?`<a class="orkl" href="${esc(url)}" target="_blank" rel="noopener">${esc(f.name)}</a>`:`<b>${esc(f.name)}</b>`}</span>`;};
 let deepT=null; try{const q=new URLSearchParams(location.search); deepT=q.get('t');
-  const tb=q.get('tab'); if(['signups','pits','brackets','board','players','parks','awards','entries','judging','asboard','asawards'].includes(tb)) S.tab=tb;}catch(e){}
+  const tb=q.get('tab'); if(['signups','pits','brackets','board','players','parks','awards','entries','judging','asboard','asawards','bbenter','bbbracket','bbjudge','bbawards'].includes(tb)) S.tab=tb;}catch(e){}
 const setUrlT=tid=>{try{const u=new URL(location.href); if(tid) u.searchParams.set('t',tid); else u.searchParams.delete('t'); history.replaceState(null,'',u);}catch(e){}};
 const sw=k=>`<span class="sw" style="${tc(k)}"></span>`;
 const ORK_URL=id=>'https://ork.amtgard.com/orkui/index.php?Route=Player/index/'+encodeURIComponent(id);
@@ -654,14 +654,14 @@ function computeSummary(tid,bl){
   return out;
 }
 function summaries(){
-  const out={}; Object.values(S.results).forEach(r=>{if(r&&r.tid&&tByid(r.tid)&&tByid(r.tid).kind!=='arts') out[r.tid]=r;});
-  if(S.tid&&T()&&T().kind!=='arts'&&S.boutsTid===S.tid){const live=computeSummary(S.tid); if(live) out[S.tid]=live;}
+  const out={}; Object.values(S.results).forEach(r=>{if(r&&r.tid&&tByid(r.tid)&&!['arts','bards'].includes(tByid(r.tid).kind)) out[r.tid]=r;});
+  if(S.tid&&T()&&!['arts','bards'].includes(T().kind)&&S.boutsTid===S.tid){const live=computeSummary(S.tid); if(live) out[S.tid]=live;}
   return Object.values(out).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.name||'').localeCompare(b.name||''));
 }
 const sumTimers={};
 function scheduleSummary(tid){if(!tid||!S.db)return; clearTimeout(sumTimers[tid]); sumTimers[tid]=setTimeout(()=>writeSummary(tid),2500);}
 async function writeSummary(tid,bl){
-  if(!tByid(tid)) return; if(!bl&&!(tid===S.tid&&S.boutsTid===tid&&S.boutsReady)) return;
+  if(!tByid(tid)||['arts','bards'].includes(tByid(tid).kind)) return; if(!bl&&!(tid===S.tid&&S.boutsTid===tid&&S.boutsReady)) return;
   const sm=computeSummary(tid,bl); if(!sm) return;
   try{await S.db.doc('results/'+tid).set(sm);}catch(e){console.warn('Could not save the tournament summary',e);}
 }
@@ -831,7 +831,10 @@ function render(){
 }
 function renderHeader(){
   const sel=$('#tpick');
-  sel.innerHTML=S.tournaments.length?S.tournaments.map(t=>`<option value="${esc(t.id)}" ${t.id===S.tid?'selected':''}>${esc(t.name)}${t.date?' · '+esc(t.date):''}</option>`).join(''):'<option>No tournaments yet</option>';
+  /* Colored dot by event type: gold = combat, green = Arts & Sciences, blue = Battle of the Bards.
+     A native <select> can't style its options, so the dot is a colored circle character. */
+  const dot=t=>t.kind==='arts'?'🟢':t.kind==='bards'?'🔵':'🟡';
+  sel.innerHTML=S.tournaments.length?S.tournaments.map(t=>`<option value="${esc(t.id)}" ${t.id===S.tid?'selected':''}>${dot(t)} ${esc(t.name)}${t.date?' · '+esc(t.date):''}</option>`).join(''):'<option>No tournaments yet</option>';
   sel.disabled=!S.tournaments.length;
   const t=T();
   $('#tmeta').innerHTML=t?`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${signupsFor(t.id).length}</b> fighters signed up</span><span>Format <b>${esc(FORMATS.find(f=>f.k===tFormat(t)).n)}</b></span>${tFormat(t)==='elim'?'<span>Scoring: 1st = 5 · 2nd = 3 · 3rd = 1</span>':`<span>Pits run <b>${esc(t.pitMin||10)} min</b></span><span>Scoring: kill = 1 · 1st = 5 · 2nd = 3 · 3rd = 1</span>`}`:'';
@@ -1092,7 +1095,7 @@ const H={
     await w(()=>S.db.doc('results/'+tid).delete()); await w(()=>S.db.doc('tournaments/'+tid).delete()); S.tid=null; toast('Tournament deleted.');},
 };
 document.addEventListener('click',e=>{const el=e.target.closest('[data-act]'); if(!el||el.disabled) return;
-  const a=el.dataset.act; if(WRITE_ACTS.has(a)&&!S.isMarshal&&!(a==='orkpick'&&(el.dataset.form==='rq'||el.dataset.form==='ae'))){toast('Sign in as a marshal to change the lists.');return;}
+  const a=el.dataset.act; if(WRITE_ACTS.has(a)&&!S.isMarshal&&!(a==='orkpick'&&['rq','ae','bb'].includes(el.dataset.form))){toast('Sign in as a marshal to change the lists.');return;}
   if(lockedAct(a)) return;
   (H[a]||H2[a])?.(el.dataset,el,e);});
 document.addEventListener('change',e=>{const t=e.target;
@@ -1168,11 +1171,11 @@ const WRITE_ACTS=new Set(['ewin','draw','orksend','finalize','reopenT','win','un
 Object.assign(S,{user:null,isMarshal:false,requests:[],marshals:[],privSubs:null,autoWar:{},warBusy:false,lastReq:'',lastApp:''});
 
 function renderAuth(){const el=$('#auth'); if(!el) return; if(!S.auth){el.innerHTML='';return;}
-  if(!S.user){el.innerHTML='<button class="btn ghost" data-act="signin">Marshal sign-in</button>';return;}
+  if(!S.user){el.innerHTML='<button class="btn ghost" data-act="signin">Sign in</button>';return;}
   const em=esc(S.user.email||'');
-  const judge=!S.isMarshal&&S.as&&S.as.myJudge;
+  const judge=!S.isMarshal&&((S.as&&S.as.myJudge)||(S.bb&&S.bb.myJudge));
   el.innerHTML=`<span>${S.isMarshal?'<b>Marshal</b> · ':judge?'<b>Judge</b> · ':''}${em}</span><button class="btn sm ghost" data-act="signout">Sign out</button>`
-    +(S.isMarshal||judge?'':`<span style="flex-basis:100%">Not on the marshal or judge list. Ask a marshal to add ${em}.</span>`);}
+    +(S.isMarshal||judge||(T()&&T().kind==='bards')?'':`<span style="flex-basis:100%">Not on the marshal or judge list. Ask a marshal to add ${em}.</span>`);}
 
 /* Hide or disable editing controls for non-marshals. Marks what it changed so signing in restores it,
    including the header's static "New tournament" button. */
@@ -1180,7 +1183,7 @@ function gate(){
   if(S.isMarshal){document.querySelectorAll('[data-gated]').forEach(el=>{if(el.dataset.gated==='h')el.hidden=false;else el.disabled=false;delete el.dataset.gated;});return;}
   document.querySelectorAll('.wrap [data-act]').forEach(el=>{const a=el.dataset.act; if(el.dataset.gated) return;
     if(a==='mwin'||a==='ewin'||a==='togdiv'){if(!el.disabled){el.disabled=true;el.dataset.gated='d';}}
-    else if(WRITE_ACTS.has(a)&&!(a==='orkpick'&&(el.dataset.form==='rq'||el.dataset.form==='ae'))){if(!el.hidden){el.hidden=true;el.dataset.gated='h';}}});
+    else if(WRITE_ACTS.has(a)&&!(a==='orkpick'&&['rq','ae','bb'].includes(el.dataset.form))){if(!el.hidden){el.hidden=true;el.dataset.gated='h';}}});
   document.querySelectorAll('[data-tally],[data-seed]').forEach(el=>{if(!el.disabled&&!el.dataset.gated){el.disabled=true;el.dataset.gated='d';}});
 }
 
@@ -1440,7 +1443,7 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
 
   // New tournament form: Type selector and A&S settings
   const row=$('#tForm .row');
-  row.insertAdjacentHTML('afterbegin',`<div class="field" style="flex-basis:220px"><label for="tKind">Type</label><select id="tKind"><option value="combat">Combat</option><option value="arts">Arts &amp; Sciences (Dragonmaster)</option></select></div>`);
+  row.insertAdjacentHTML('afterbegin',`<div class="field" style="flex-basis:220px"><label for="tKind">Type</label><select id="tKind"><option value="combat">Combat</option><option value="arts">Arts &amp; Sciences (Dragonmaster)</option><option value="bards">Battle of the Bards</option></select></div>`);
   const divBlock=$('#tDivs').parentElement;
   divBlock.insertAdjacentHTML('beforebegin',`<div id="tArts" hidden class="stack" style="gap:12px">
     <div class="row">
@@ -1451,8 +1454,10 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
     <p class="foot" style="margin:0">Judges score in .25 steps. Entries averaging at or above the award threshold are flagged for award recommendations. A player’s Dragonmaster score adds their best score in each of their top sub-categories (Westmarch midreign counts 5).</p>
     <div><div class="lbl" style="margin-bottom:6px">Sub-categories offered</div><div class="catgrid" id="aSubs">${AS_CATS.map(c=>`<fieldset><legend>${c.n}</legend>${c.subs.map(([k,n])=>`<label><input type="checkbox" value="${k}" checked>${esc(n)}</label>`).join('')}</fieldset>`).join('')}</div></div></div>`);
   const combatBits=[$('#tFormat').closest('.field'),$('#tMinField'),$('#tFormatHelp'),divBlock];
-  const sync=()=>{const arts=$('#tKind').value==='arts'; $('#tArts').hidden=!arts; combatBits.forEach(el=>{if(el) el.hidden=arts;});
-    if(!arts){$('#tMinField').hidden=$('#tFormat').value==='elim';}};
+  const sync=()=>{const kind=$('#tKind').value; $('#tArts').hidden=kind!=='arts'; const tb=$('#tBards'); if(tb) tb.hidden=kind!=='bards';
+    combatBits.forEach(el=>{if(el) el.hidden=kind!=='combat';});
+    if(kind==='combat'){$('#tMinField').hidden=$('#tFormat').value==='elim';}};
+  window.syncKind=sync;
   document.addEventListener('change',e=>{if(e.target.id==='tKind'||e.target.id==='tFormat')sync();});
   document.addEventListener('submit',async e=>{
     if(e.target.id!=='tForm'||$('#tKind').value!=='arts') return;
@@ -1488,9 +1493,13 @@ function watchArts(){
     on(db.doc('judges/'+tid+'__'+myEmail()),s=>{S.as.myJudge=s.exists?s.data():null; if(S.as.myJudge&&!sub){sub=true;subScores();} render();});
   }
 }
+/* Dragonmaster scoring: with 5 or more judges, drop the single highest and single lowest score, then average the rest. */
+const TRIM_AT=5;
+function trimmedAvg(list){const v=list.slice().sort((x,y)=>x-y), n=v.length, trim=n>=TRIM_AT, used=trim?v.slice(1,-1):v;
+  return {a:used.reduce((s,x)=>s+x,0)/used.length,n,trim};}
 function asAverages(){
-  if(S.as.scoresReadable){const m={};Object.values(S.as.scores).forEach(sc=>{const x=m[sc.eid]||(m[sc.eid]={s:0,n:0});x.s+=Number(sc.score)||0;x.n++;});
-    return Object.fromEntries(Object.entries(m).map(([k,v])=>[k,{a:v.s/v.n,n:v.n}]));}
+  if(S.as.scoresReadable){const m={};Object.values(S.as.scores).forEach(sc=>{(m[sc.eid]||(m[sc.eid]=[])).push(Number(sc.score)||0);});
+    return Object.fromEntries(Object.entries(m).map(([k,v])=>[k,trimmedAvg(v)]));}
   return (S.as.results&&S.as.results.avg)||{};
 }
 let asPubT=null;
@@ -1608,7 +1617,7 @@ function renderJudging(){
     const avg=asAverages();
     setHtml($('#asProgress'),S.as.entries.length?`<h3 style="margin-bottom:6px">Scoring progress</h3><div class="scroll"><table><thead><tr><th>Entry</th><th>Category</th><th class="n">Judges</th><th class="n">Average</th></tr></thead><tbody>
       ${S.as.entries.map(e=>{const elig=S.as.judges.filter(j=>judgeCanScore(j,e)).length, a=avg[e.id];
-        return `<tr><td><b>${esc(e.title)}</b><small class="muted" style="display:block">${esc(e.name)}</small></td><td>${esc(SUB[e.sub]?.n||e.sub)}</td><td class="n">${a?a.n:0} of ${elig}</td><td class="n">${a?f2(a.a):'—'}</td></tr>`;}).join('')}</tbody></table></div>`:'','progress');
+        return `<tr><td><b>${esc(e.title)}</b><small class="muted" style="display:block">${esc(e.name)}</small></td><td>${esc(SUB[e.sub]?.n||e.sub)}</td><td class="n">${a?a.n:0} of ${elig}</td><td class="n">${a?f2(a.a)+(a.trim?' <small class="muted" title="Highest and lowest dropped">trimmed</small>':''):'—'}</td></tr>`;}).join('')}</tbody></table></div>`:'','progress');
   } else {$('#asJudgeAdmin').innerHTML=''; S.as.adminTid=null; delete S.as.last.jlist; delete S.as.last.progress;}
   // Scoring panel for anyone on the judge list
   const j=S.as.myJudge;
@@ -1667,7 +1676,7 @@ function renderASBoard(){
     <div class="checks" style="margin:12px 0"><label><input type="checkbox" id="asOpen" ${t.signupsOpen!==false?'checked':''}> Accept entries</label><label><input type="checkbox" id="asLive" ${c.live?'checked':''}> Show scores to everyone before finalizing</label></div>
     <button class="btn danger ${S.confirm==='asdelT:'+S.tid?'armed':''}" data-act="asDelT">${S.confirm==='asdelT:'+S.tid?'Tap again to delete everything':'Delete event'}</button></div>`;
   const board=show?`<div class="panel"><h2>Dragonmaster standings</h2>${rows?`<div class="scroll"><table><thead><tr><th>#</th><th>Player</th><th class="n">Entries</th><th class="n">Counted</th><th class="n">Score</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="none">No scores yet.</p>'}
-      <p class="foot">Score = the sum of each player’s best judged average in each sub-category, top ${N} sub-categories. Averages are the mean of all judges’ scores.${!final&&S.isMarshal&&!c.live?' Only marshals see this until you finalize.':''}</p></div>`
+      <p class="foot">Score = the sum of each player’s best judged average in each sub-category, top ${N} sub-categories. Each entry’s average is the mean of its judges’ scores; with ${TRIM_AT} or more judges, the highest and lowest scores are dropped first.${!final&&S.isMarshal&&!c.live?' Only marshals see this until you finalize.':''}</p></div>`
     :`<div class="panel"><h2>Scores are revealed at court</h2><p class="muted" style="margin:0">The standings appear here when the A&amp;S Crat finalizes the event.</p></div>`;
   setHtml($('#as-asboard'),`<div class="stack">${finBar}${board}${show?`<div class="bgrid">${catCards}</div>`:''}${settings}</div>`,'board');
 }
@@ -1675,12 +1684,12 @@ function renderASBoard(){
 /* ---------- Awards tab ---------- */
 function asRecs(){const t=T(), c=asCfg(t), avg=asAverages(), best={};
   S.as.entries.forEach(e=>{const a=avg[e.id], sub=SUB[e.sub]; if(!a||!a.n||!sub||a.a<c.thr) return; const k=playerKey(e)+'__'+sub.order;
-    if(!best[k]||a.a>best[k].a) best[k]={k,e,a:a.a,n:a.n,order:sub.order};});
+    if(!best[k]||a.a>best[k].a) best[k]={k,e,a:a.a,n:a.n,trim:!!a.trim,order:sub.order};});
   return Object.values(best).map(r=>{const lad=r.e.orkId&&S.awards.players[r.e.orkId]&&S.awards.players[r.e.orkId].l; const cur=lad?Number(lad[r.order]||0):null;
     return {...r,cur,next:cur==null?null:Math.min(10,cur+1),state:cur==null?'unknown':cur>=10?'met':'recommend'};})
    .sort((a,b)=>({recommend:0,unknown:1,met:2}[a.state]-{recommend:0,unknown:1,met:2}[b.state])||b.a-a.a);}
 function asRecText(r){const t=T(), c=asCfg(t), lvl=r.next||1;
-  return `Recommended for the Order of the ${AS_ORDER[r.order]}, ${ordinalN(lvl)} order. Entry "${r.e.title}" (${SUB[r.e.sub]?.n||r.e.sub}) at ${t.name} (${longDateT(t.date)}${t.park?', '+t.park:''}) received a judged average of ${f2(r.a)} out of ${c.max} from ${r.n} judge${r.n===1?'':'s'}. Submitted from Field Marshal.`;}
+  return `Recommended for the Order of the ${AS_ORDER[r.order]}, ${ordinalN(lvl)} order. Entry "${r.e.title}" (${SUB[r.e.sub]?.n||r.e.sub}) at ${t.name} (${longDateT(t.date)}${t.park?', '+t.park:''}) received a judged average of ${f2(r.a)} out of ${c.max} from ${r.n} judge${r.n===1?'':'s'}${r.trim?' (highest and lowest scores dropped)':''}. Submitted from Field Marshal.`;}
 async function refreshLadders(manual){
   const ids=[...new Set(S.as.entries.map(e=>e.orkId).filter(Boolean))].filter(id=>manual||!(S.awards.players[id]&&S.awards.players[id].l));
   if(!ids.length){if(manual)toast('No entrants with ORK IDs to check.');return;}
@@ -1731,7 +1740,7 @@ Object.assign(H2,{
       const c=asCfg(t); let b=S.db.batch(), n=0; const flush=async()=>{await b.commit(); b=S.db.batch(); n=0;};
       for(const e of S.as.entries){const key=kmap[e.id]; if(!key) continue; const sc=scoresFor(e.id).sort((a,b)=>(a.at||0)-(b.at||0));
         b.set(S.db.doc('feedback/'+key),{tid:t.id,eid:e.id,event:t.name,date:t.date||'',park:t.park||'',name:e.name,title:e.title,sub:e.sub,min:c.min,max:c.max,
-          avg:avg[e.id]?avg[e.id].a:null,judges:sc.map((s,i)=>({label:'Judge '+(i+1),score:s.score,feedback:s.feedback||''})),publishedAt:Date.now()});
+          avg:avg[e.id]?avg[e.id].a:null,trimmed:!!(avg[e.id]&&avg[e.id].trim),judges:sc.map((s,i)=>({label:'Judge '+(i+1),score:s.score,feedback:s.feedback||''})),publishedAt:Date.now()});
         if(++n>=400) await flush();}
       b.set(S.db.doc('asResults/'+t.id),{avg,updatedAt:Date.now(),final:true}); await b.commit();
       await w(()=>S.db.doc('tournaments/'+t.id).update({status:'final',finalizedAt:Date.now(),signupsOpen:false}));
@@ -1777,12 +1786,338 @@ async function showFeedback(){
     const f=d.data();
     box.innerHTML=`<div class="panel"><div class="eyebrow">${esc(f.event)} · ${esc(longDateT(f.date))}${f.park?' · '+esc(f.park):''}</div>
       <h2 style="margin:6px 0">${esc(f.title)}</h2><p class="muted" style="margin:0 0 12px">${esc(f.name)} · ${esc(SUB[f.sub]?.n||f.sub)}</p>
-      <div class="tiles">${tile('Average score',f.avg!=null?f2(f.avg):'—',`out of ${f.max}`)}${tile('Judges',(f.judges||[]).length)}</div>
+      <div class="tiles">${tile('Average score',f.avg!=null?f2(f.avg):'—',`out of ${f.max}${f.trimmed?' · highest and lowest dropped':''}`)}${tile('Judges',(f.judges||[]).length)}</div>
       ${(f.judges||[]).map(j=>`<div class="entry"><div class="row" style="justify-content:space-between"><b>${esc(j.label)}</b><span class="scorepill done">${f2(j.score)}</span></div>${j.feedback?`<div class="wu">${esc(j.feedback)}</div>`:'<span class="muted">No written feedback.</span>'}</div>`).join('')}
       <p class="foot">Judges are shown by number, not name. Thank you for entering.</p></div>`;
   }catch(err){box.innerHTML='<div class="panel"><p class="muted" style="margin:0">Couldn’t load your feedback. Check your connection and reload.</p></div>';}
   return true;
 }
+
+/* =====================================================================
+   Battle of the Bards — web app only. tournaments/{tid}.kind === 'bards', bb:{head}
+   bards/{tid}__{uid}      a signed-in bard's signup {tid,uid,name,park,orkId,at}
+   bsubs/{tid}__{uid}__r{n} that bard's Google Drive link for round n (public)
+   judges/{tid}__{email}   Ollamh judges, added by the organizer (shared with A&S)
+   bvotes/{tid}__{m}__{email} a judge's ballot: m = match id (pick = bard id, dragon = [bard ids]) or jc{n}
+   bbr/{tid}               public bracket state: slots, seeds, w, v (vote counts), jc, df (Dragon flags), round, phase, ties
+   Phases per round: entries → voting → (tie, head judge decides) → closed; after the final: done.
+   ===================================================================== */
+const BB_TABS=['bbenter','bbbracket','bbjudge','bbawards'];
+S.bb={key:'',bards:[],subs:{},votes:{},judges:[],myJudge:null,br:null,last:{},formKey:'',adminTid:null,autoLadder:{}};
+const isBards=t=>!!t&&t.kind==='bards';
+const bbName=bid=>{const b=S.bb.bards.find(x=>x.id===bid);return b?b.name:'Unknown bard';};
+const myBid=()=>S.user?S.tid+'__'+S.user.uid:null;
+const isHead=()=>!!S.user&&(T()?.bb?.head||'')===myEmail();
+function bbSet(el,html,key){if(!el)return; if(S.bb.last[key]===html)return; const ae=document.activeElement,id=ae&&ae.id,ss=ae&&ae.selectionStart,se=ae&&ae.selectionEnd;
+  el.innerHTML=html; S.bb.last[key]=html; if(id){const n=document.getElementById(id); if(n&&n!==ae){n.focus(); try{if(ss!=null)n.setSelectionRange(ss,se);}catch(e){}}}}
+function bbBracket(){const b=S.bb.br; if(!b||!Array.isArray(b.slots)||b.slots.length<2) return null;
+  const W=b.w||{}, P=b.slots.length, R=Math.round(Math.log2(P)), rounds=[]; let prev=null;
+  for(let r=0;r<R;r++){const ms=[];for(let i=0;i<(P>>(r+1));i++){const p1=r===0?(b.slots[2*i]||null):prev[2*i].nextW, p2=r===0?(b.slots[2*i+1]||null):prev[2*i+1].nextW; ms.push({...matchOf(W,`r${r}m${i}`,p1,p2),r});}
+    rounds.push(ms); prev=ms;}
+  return {P,R,rounds,final:rounds[R-1][0]};}
+const roundName=(R,r)=>{const left=R-r;return left===1?'Final':left===2?'Semifinals':left===3?'Quarterfinals':`Round ${r+1}`;};
+const subFor=(bid,r)=>S.bb.subs[bid+'__r'+r];
+
+/* ---------- page furniture ---------- */
+(function initBardsUI(){
+  const tabs=$('#tabs'); [['bbenter','Bards'],['bbbracket','Bracket'],['bbjudge','Judging'],['bbawards','Awards']].forEach(([k,n])=>{const b=document.createElement('button');b.className='bb-tab';b.dataset.act='tab';b.dataset.tab=k;b.textContent=n;tabs.appendChild(b);});
+  const anchor=$('#tab-awards'); BB_TABS.slice().reverse().forEach(k=>{const s=document.createElement('section');s.id='tab-'+k;s.hidden=true;s.innerHTML=`<div id="bb-${k}"></div>`;anchor.after(s);});
+  const st=document.createElement('style'); st.textContent=`
+body.bards .tabs .cb-tab,body.bards .tabs .as-tab{display:none!important} body:not(.bards) .tabs .bb-tab{display:none!important}
+.bbm{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px;background:var(--panel)}
+.bbm .who{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.bbm .who.win b{color:var(--good)} .bbm .who.lose{opacity:.55}
+.vote{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);cursor:pointer}
+.vote:has(input:checked){border-color:var(--or);background:var(--or-soft)}
+.phase{display:inline-block;font-weight:800;border-radius:6px;padding:2px 8px;border:1px solid var(--or);background:var(--or-soft);font-size:.85rem}`;
+  document.head.appendChild(st);
+  // New-event form: Battle of the Bards settings
+  $('#tArts').insertAdjacentHTML('afterend',`<div id="tBards" hidden class="stack" style="gap:10px">
+    <div class="row"><div class="field" style="flex:0 1 320px"><label for="bHead">Head judge (Google email)</label><input id="bHead" type="email" autocomplete="off" placeholder="Breaks tied votes"></div></div>
+    <p class="foot" style="margin:0">Bards sign up with a Google sign-in, then you draw a single-elimination bracket. Each round, bards post a Google Drive link to their performance, your Ollamh vote on every match, and the bard with the most votes advances. Ties go to the head judge. Judges also name a Judges’ Choice each round and can flag performances for the Order of the Dragon.</p></div>`);
+  document.addEventListener('submit',async e=>{
+    if(e.target.id!=='tForm'||$('#tKind').value!=='bards') return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const name=$('#tName').value.trim(); if(!name) return;
+    const head=($('#bHead').value.trim()||myEmail()).toLowerCase();
+    if(!/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(head)){toast('Enter the head judge’s full email address.');return;}
+    const data={name,date:$('#tDate').value,park:$('#tPark').value.trim(),level:$('#tLevel').value,kind:'bards',divs:[],signupsOpen:true,bb:{head},at:Date.now()};
+    const ref=S.db.collection('tournaments').doc();
+    if(await w(()=>ref.set(data))){S.tid=ref.id;setUrlT(S.tid);S.tab='bbenter';$('#newT').hidden=true;$('#tName').value='';$('#tKind').value='combat';window.syncKind&&window.syncKind();render();toast(`${name} is open for bards.`);}
+  },true);
+})();
+
+/* ---------- live data ---------- */
+function watchBards(){
+  const t=T(); const key=isBards(t)?[S.tid,S.isMarshal?'m':'',S.user?S.user.uid:'',myEmail()].join('|'):'';
+  if(key===S.bb.key) return; (S.bb.unsubs||[]).forEach(u=>u()); S.bb.unsubs=[]; S.bb.key=key;
+  Object.assign(S.bb,{bards:[],subs:{},votes:{},judges:[],myJudge:null,br:null,last:{}});
+  if(!key||!S.db) return;
+  const tid=S.tid, db=S.db, on=(q,f)=>S.bb.unsubs.push(q.onSnapshot(f,e=>console.warn('Bards listener',e.code||e)));
+  on(db.collection('bards').where('tid','==',tid),s=>{S.bb.bards=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.at||0)-(b.at||0));render();});
+  on(db.collection('bsubs').where('tid','==',tid),s=>{S.bb.subs=Object.fromEntries(s.docs.map(d=>{const x=d.data();return [x.bid+'__r'+x.round,x];}));render();});
+  on(db.doc('bbr/'+tid),s=>{S.bb.br=s.exists?s.data():null;render();});
+  const subVotes=()=>on(db.collection('bvotes').where('tid','==',tid),s=>{S.bb.votes=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));render();});
+  if(S.isMarshal){
+    on(db.collection('judges').where('tid','==',tid),s=>{S.bb.judges=s.docs.map(d=>({id:d.id,...d.data()}));S.bb.myJudge=S.bb.judges.find(j=>j.email===myEmail())||null;render();});
+    subVotes();
+  } else if(myEmail()){
+    let sub=false; on(db.doc('judges/'+tid+'__'+myEmail()),s=>{S.bb.myJudge=s.exists?s.data():null; if(S.bb.myJudge&&!sub){sub=true;subVotes();} render();});
+  }
+}
+
+/* ---------- render wrapper ---------- */
+const artsOrCombatRender=render;
+render=function(){
+  if(S.fbMode) return;
+  const t=T(), bb=isBards(t);
+  document.body.classList.toggle('bards',bb);
+  BB_TABS.forEach(k=>{if(!bb)$('#tab-'+k).hidden=true;});
+  if(!bb){ if(BB_TABS.includes(S.tab)) S.tab='signups'; watchBards(); artsOrCombatRender(); return; }
+  document.body.classList.remove('arts'); document.body.classList.toggle('marshal',!!S.isMarshal);
+  renderAuth(); renderHeader(); watchBards(); if(typeof watchArts==='function') watchArts();
+  const B=bbBracket(), br=S.bb.br||{};
+  const status=t.status==='final'?'<span class="st done">Final results</span>':'';
+  const phaseTxt=!B?'Signups':br.phase==='done'?'Complete':`${roundName(B.R,br.round||0)}: ${({setup:'drawn',entries:'entries open',voting:'judges voting',tie:'tie-break',closed:'closed'})[br.phase]||'drawn'}`;
+  $('#tmeta').innerHTML=`${status}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${S.bb.bards.length}</b> bard${S.bb.bards.length===1?'':'s'}</span><span>Battle of the Bards</span><span class="phase">${esc(phaseTxt)}</span>`;
+  $('#tabs').hidden=false; $('#empty').hidden=true;
+  ['signups','pits','brackets','board','players','parks','awards','entries','judging','asboard','asawards'].forEach(x=>{const el=$('#tab-'+x); if(el) el.hidden=true;});
+  const canJudge=S.isMarshal||!!S.bb.myJudge;
+  if(!BB_TABS.includes(S.tab)) S.tab=B?'bbbracket':'bbenter';
+  if((S.tab==='bbjudge'&&!canJudge)||(S.tab==='bbawards'&&!S.isMarshal)) S.tab='bbbracket';
+  document.querySelectorAll('.tabs .bb-tab').forEach(b=>{b.classList.toggle('on',b.dataset.tab===S.tab); b.hidden=(b.dataset.tab==='bbjudge'&&!canJudge)||(b.dataset.tab==='bbawards'&&!S.isMarshal);});
+  BB_TABS.forEach(k=>$('#tab-'+k).hidden=S.tab!==k);
+  placeOrkAuthBB();
+  ({bbenter:renderBBEnter,bbbracket:renderBBBracket,bbjudge:renderBBJudge,bbawards:renderBBAwards})[S.tab]();
+  gate();
+};
+function placeOrkAuthBB(){const el=$('#orkAuth'), home=$('#bbOrkSlot'); if(el&&home&&el.parentElement!==home) home.prepend(el);}
+
+/* ---------- Bards tab: signup, my entry, list ---------- */
+function myMatch(){const B=bbBracket(), bid=myBid(); if(!B||!bid) return null; const r=S.bb.br.round||0;
+  const M=(B.rounds[r]||[]).find(m=>m.p1===bid||m.p2===bid); return M?{M,r,B}:null;}
+function renderBBEnter(){
+  const t=T(), open=t.signupsOpen!==false&&t.status!=='final'&&!S.bb.br, root=$('#bb-bbenter'), bid=myBid(), me=bid&&S.bb.bards.find(b=>b.id===bid);
+  if(!$('#bbList')) root.innerHTML=`<div class="stack"><div id="bbForm"></div><div id="bbMine"></div><div class="panel" id="bbList"></div></div>`;
+  const fk=[S.tid,open,!!S.user,!!me].join('|');
+  if(S.bb.formKey!==fk){S.bb.formKey=fk;
+    $('#bbForm').innerHTML=me?'':!open?`<div class="panel"><h2>Signups are closed</h2><p class="muted" style="margin:0">${S.bb.br?'The bracket has been drawn. Follow along on the Bracket tab.':'The organizer has closed signups.'}</p></div>`
+      :!S.user?`<div class="panel"><h2>Enter the Battle of the Bards</h2><p class="muted">Sign in with Google to enter. You’ll use the same sign-in each round to post your performance link.</p><button class="btn" data-act="signin">Sign in to enter</button></div>`
+      :`<div class="panel"><h2>Enter the Battle of the Bards</h2><form id="bbSignup" class="form">
+        <div class="row"><div class="field" style="flex-basis:240px"><label for="bbName">Your persona</label><input id="bbName" list="fighterNames" autocomplete="off" required></div>
+          <div class="field"><label for="bbPark">Home park</label><input id="bbPark" list="parks" autocomplete="off"></div></div>
+        <div class="row"><button class="btn sm ghost" type="button" data-act="orkfind" data-form="bb">Find me in the ORK</button>
+          <div class="field" style="flex-basis:220px"><label for="bbOrk">…or paste your ORK profile link</label><input id="bbOrk" autocomplete="off" inputmode="url"></div></div>
+        <div id="bbMatch" class="match-note" hidden></div>
+        <div class="row"><button class="btn" type="submit">Enter the battle</button></div>
+        <p class="foot" style="margin:0">Your ORK profile lets the organizer send Order of the Dragon recommendations for you.</p></form></div>`;}
+  // My entry panel
+  let mine='';
+  if(me){const mm=myMatch(), br=S.bb.br||{};
+    if(!S.bb.br) mine=`<div class="panel"><h2>You’re entered, ${esc(me.name)}</h2><p class="muted" style="margin:0">The organizer will draw the bracket after signups close. Come back here each round to post your performance link.</p>
+      ${open?`<div class="row" style="margin-top:10px"><button class="btn sm danger ${S.confirm==='bbleave'?'armed':''}" data-act="bbLeave">${S.confirm==='bbleave'?'Tap again to withdraw':'Withdraw'}</button></div>`:''}</div>`;
+    else if(br.phase==='done'||t.status==='final') mine=`<div class="panel"><h2>Thank you for performing, ${esc(me.name)}</h2><p class="muted" style="margin:0">See the final bracket on the Bracket tab.</p></div>`;
+    else if(!mm) mine=`<div class="panel"><h2>Thank you for performing, ${esc(me.name)}</h2><p class="muted" style="margin:0">You’re out of the bracket this round. Follow along on the Bracket tab.</p></div>`;
+    else{const {M,r,B}=mm, opp=M.p1===bid?M.p2:M.p1, sub=subFor(bid,r);
+      const oppTxt=opp==='?'?'the winner of another match':!opp?'a bye (you advance automatically)':esc(bbName(opp));
+      mine=`<div class="panel"><h2>${esc(roundName(B.R,r))}: you vs ${oppTxt}</h2>
+        ${br.phase==='entries'&&opp&&opp!=='?'?`<form id="bbSub" class="form"><div class="field"><label for="bbUrl">Google Drive link to your performance</label><input id="bbUrl" type="url" required placeholder="https://drive.google.com/…" value="${esc(sub?sub.url:'')}"></div>
+            <div class="field"><label for="bbNote">Title or note for the judges (optional)</label><input id="bbNote" maxlength="200" value="${esc(sub?sub.note||'':'')}"></div>
+            <div class="row"><button class="btn" type="submit">${sub?'Update my link':'Submit my link'}</button></div>
+            <p class="foot" style="margin:0">Set the Drive file to “Anyone with the link can view” so the judges can open it.</p></form>`
+          :sub?`<p style="margin:0">Your link: <a class="orkl" href="${esc(sub.url)}" target="_blank" rel="noopener">${esc(sub.note||'Performance')}</a></p>`:`<p class="muted" style="margin:0">${br.phase==='voting'?'Voting is underway.':'The organizer hasn’t opened entries for this round yet.'}</p>`}</div>`;}}
+  bbSet($('#bbMine'),mine,'mine');
+  const list=S.bb.bards.length?`<ul class="mlist">${S.bb.bards.map(b=>{const k='bbrm:'+b.id;return `<li><span><b>${esc(b.name)}</b> <small class="muted">${esc(b.park||'')}${b.orkId?' · '+orkLink(b.orkId):''}</small></span>
+      ${S.isMarshal&&!S.bb.br?`<button class="btn sm danger m-only ${S.confirm===k?'armed':''}" data-act="bbRemove" data-b="${esc(b.id)}">${S.confirm===k?'Tap again to remove':'Remove'}</button>`:''}</li>`;}).join('')}</ul>`:'<p class="none">No bards have entered yet.</p>';
+  bbSet($('#bbList'),`<h2>Bards · <span class="num">${S.bb.bards.length}</span></h2>${list}`,'list');
+}
+document.addEventListener('submit',async e=>{
+  if(e.target.id==='bbSignup'){e.preventDefault(); const t=T(); if(!t||!S.user) return;
+    const name=$('#bbName').value.trim(), park=$('#bbPark').value.trim(), orkRaw=$('#bbOrk').value.trim(), orkId=parseOrk(orkRaw);
+    if(!name) return; if(orkRaw&&!orkId){toast('That doesn’t look like an ORK profile link.');return;}
+    try{await S.db.doc('bards/'+t.id+'__'+S.user.uid).set({tid:t.id,uid:S.user.uid,name:name.slice(0,80),park:park.slice(0,60),orkId:orkId||null,at:Date.now()});toast('You’re entered. Good luck!');}
+    catch(err){console.error(err);toast(err.code==='permission-denied'?'Signups for this event are closed.':'Couldn’t enter you. Try again.');}}
+  else if(e.target.id==='bbSub'){e.preventDefault(); const mm=myMatch(); if(!mm) return;
+    const url=$('#bbUrl').value.trim(), note=$('#bbNote').value.trim();
+    if(!/^https:\/\/\S+$/i.test(url)||url.length>500){toast('Paste the full https:// link to your Google Drive file.');return;}
+    try{await S.db.doc('bsubs/'+S.tid+'__'+S.user.uid+'__r'+mm.r).set({tid:S.tid,uid:S.user.uid,bid:myBid(),round:mm.r,url,note:note.slice(0,200),at:Date.now()});toast('Link submitted.');}
+    catch(err){console.error(err);toast(err.code==='permission-denied'?'Entries for this round are closed.':'Couldn’t save your link. Try again.');}}
+});
+
+/* ---------- Bracket tab (public) ---------- */
+function renderBBBracket(){
+  const t=T(), B=bbBracket(), br=S.bb.br||{}, root=$('#bb-bbbracket'), r=br.round||0;
+  let ctl='';
+  if(S.isMarshal&&t.status!=='final'){
+    const k=x=>S.confirm===x?'armed':'';
+    if(!B) ctl=`<div class="panel m-only"><h2>Draw the bracket</h2><p class="foot" style="margin:0 0 10px">${S.bb.bards.length} bard${S.bb.bards.length===1?'':'s'} signed up. Drawing closes signups and places bards at random; any byes go to the top of the draw.</p>
+      <button class="btn" data-act="bbDraw" ${S.bb.bards.length<2?'disabled':''}>Draw bracket</button></div>`;
+    else{const rn=roundName(B.R,r);
+      const next=br.phase==='setup'?`<button class="btn" data-act="bbPhase" data-v="entries">Open ${esc(rn)} for entries</button>${r===0?` <button class="btn ghost ${k('bbredraw')}" data-act="bbDraw">${S.confirm==='bbredraw'?'Tap again to redraw':'Redraw bracket'}</button>`:''}`
+        :br.phase==='entries'?`<button class="btn" data-act="bbPhase" data-v="voting">Close entries and open voting</button>`
+        :br.phase==='voting'?`<button class="btn ${k('bbclose')}" data-act="bbClose">${S.confirm==='bbclose'?'Tap again to close the round':`Close ${esc(rn)} and count votes`}</button>`
+        :br.phase==='tie'?`<span class="muted">Waiting for the head judge to break ${((br.ties||[]).length)} tie${(br.ties||[]).length===1?'':'s'}.</span>`
+        :br.phase==='closed'?`<button class="btn" data-act="bbNext">Start ${esc(roundName(B.R,r+1))}</button>`
+        :br.phase==='done'?`<button class="btn ${k('bbfin')}" data-act="bbFinalize">${S.confirm==='bbfin'?'Tap again to finalize':'Finalize event'}</button>`:'';
+      const live=(B.rounds[r]||[]).filter(M=>M.state==='live'||M.state==='done'), subs=live.reduce((n,M)=>n+[M.p1,M.p2].filter(b=>subFor(b,r)).length,0);
+      const judges=S.bb.judges.length, voted=live.map(M=>Object.values(S.bb.votes).filter(v=>v.m===M.id).length);
+      ctl=`<div class="panel m-only"><div class="row" style="justify-content:space-between;align-items:center"><div><h2 style="margin:0 0 4px">${esc(rn)} <span class="phase">${esc(({setup:'Drawn',entries:'Entries open',voting:'Judges voting',tie:'Tie-break',closed:'Closed',done:'Complete'})[br.phase]||'')}</span></h2>
+        <p class="foot" style="margin:0">${br.phase==='entries'?`${subs} of ${live.length*2} performance links in.`:br.phase==='voting'?`Votes in: ${voted.map((n,i)=>`match ${i+1}: ${n} of ${judges}`).join(' · ')}.`:br.phase==='done'?'The final is decided. Finalizing locks results for the Awards tab.':''}</p></div><div class="row">${next}</div></div></div>`;}
+  }
+  let body;
+  if(!B) body=`<div class="panel"><h2>Bracket</h2><p class="none">The bracket appears here once the organizer draws it.</p></div>`;
+  else{const v=br.v||{};
+    const who=(M,p)=>{if(p==='?') return `<div class="who"><span class="muted">Winner of previous match</span></div>`; if(!p) return `<div class="who"><span class="muted">Bye</span></div>`;
+      const cls=M.win===p?'win':M.lose===p?'lose':'', sub=subFor(p,M.r), vc=v[M.id], tieWin=vc&&M.win===p&&M.p1&&M.p2&&vc[M.p1]===vc[M.p2],
+        cnt=vc&&vc[p]!=null?`<span class="scorepill">${vc[p]} vote${vc[p]===1?'':'s'}${tieWin?' · head judge':''}</span>`:'';
+      return `<div class="who ${cls}"><span><b>${esc(bbName(p))}</b>${sub?` <a class="orkl" href="${esc(sub.url)}" target="_blank" rel="noopener" title="${esc(sub.note||'Performance')}">▶ ${esc((sub.note||'Performance').slice(0,40))}</a>`:''}</span>${cnt}</div>`;};
+    const cols=B.rounds.map((ms,ri)=>`<div class="ecol"><span class="lbl">${esc(roundName(B.R,ri))}${br.jc&&br.jc[ri]?` · Judges’ Choice: ${esc(bbName(br.jc[ri]))}`:''}</span><div class="ecolm">${ms.map(M=>`<div class="bbm">${who(M,M.p1)}${who(M,M.p2)}</div>`).join('')}</div></div>`).join('');
+    const champ=B.final.win, second=B.final.lose;
+    const jcs=Object.entries(br.jc||{}).filter(([,b])=>b).map(([ri,b])=>`<span class="rchip">${esc(roundName(B.R,+ri))}: <b>${esc(bbName(b))}</b></span>`).join('');
+    body=`<div class="panel"><h2>Bracket</h2><div class="etree">${cols}</div>
+      ${champ?`<div class="podium"><div class="pl"><span class="medal m1">1</span><span class="nm"><b>${esc(bbName(champ))}</b> · Champion</span></div>${second?`<div class="pl"><span class="medal m2">2</span><span class="nm">${esc(bbName(second))}</span></div>`:''}</div>`:''}
+      <p class="foot">The bard with the most judges’ votes advances; tied votes go to the head judge. Vote counts appear when a round closes.</p></div>
+      ${jcs?`<div class="panel"><h3 style="margin-bottom:6px">Judges’ Choice</h3><div>${jcs}</div></div>`:''}`;}
+  bbSet(root,`<div class="stack">${ctl}${body}</div>`,'bracket');
+}
+
+/* ---------- Judging tab ---------- */
+function renderBBJudge(){
+  const t=T(), B=bbBracket(), br=S.bb.br||{}, r=br.round||0, root=$('#bb-bbjudge'), me=myEmail();
+  if(!$('#bbJudgePanel')) root.innerHTML=`<div class="stack"><div id="bbJudgeAdmin"></div><div id="bbTie"></div><div id="bbJudgePanel"></div></div>`;
+  if(S.isMarshal){
+    if(S.bb.adminTid!==S.tid){S.bb.adminTid=S.tid;
+      $('#bbJudgeAdmin').innerHTML=`<div class="panel m-only"><h2>Ollamh judges</h2><div id="bbJudgeList"></div>
+        <div class="row" style="margin-top:12px"><div class="field"><label for="bjEmail">Add a judge by their Google email</label><input id="bjEmail" type="email" autocomplete="off" placeholder="ollamh@gmail.com"></div><button class="btn" data-act="bbAddJudge">Add judge</button></div>
+        <div class="row" style="margin-top:10px"><div class="field" style="flex:0 1 320px"><label for="bbHeadSel">Head judge (breaks ties)</label><input id="bbHeadSel" type="email" value="${esc(t.bb?.head||'')}"></div></div>
+        <p class="foot" style="margin:0">Judges sign in with Google using that email. They vote on every match in a round and never see which way the others voted until the round closes.</p></div>`;}
+    bbSet($('#bbJudgeList'),S.bb.judges.length?`<ul class="mlist">${S.bb.judges.slice().sort((a,b)=>a.email.localeCompare(b.email)).map(j=>{const k='bbrmJ:'+j.id;
+      return `<li><span>${esc(j.email)}${j.email===(t.bb?.head||'')?' <span class="rchip">Head judge</span>':''}</span><button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="bbRmJudge" data-j="${esc(j.id)}">${S.confirm===k?'Tap again to remove':'Remove'}</button></li>`;}).join('')}</ul>`:'<p class="none">No judges yet.</p>','jlist');
+  } else {$('#bbJudgeAdmin').innerHTML=''; S.bb.adminTid=null; delete S.bb.last.jlist;}
+  // Head judge tie-break
+  let tie='';
+  if(br.phase==='tie'&&(isHead()||S.isMarshal)&&B){
+    const ties=br.ties||[];
+    tie=`<div class="panel"><h2>Tie-break</h2><p class="foot" style="margin:0 0 8px">${isHead()?'You’re the head judge. Choose the winner of each tied vote.':'Only the head judge ('+esc(t.bb?.head||'not set')+') can break ties.'}</p>
+      ${ties.map(x=>{const opts=x.opts||[];return `<div class="entry"><b>${x.m.startsWith('jc')?'Judges’ Choice, '+esc(roundName(B.R,r)):esc(roundName(B.R,r))+' match'}</b>
+        <div class="row">${opts.map(b=>`<button class="btn sm ${isHead()?'':'ghost'}" data-act="bbTieBreak" data-m="${esc(x.m)}" data-b="${esc(b)}" ${isHead()?'':'disabled'}>${esc(bbName(b))}</button>`).join('')}</div></div>`;}).join('')}</div>`;}
+  bbSet($('#bbTie'),tie,'tie');
+  // Ballots
+  const j=S.bb.myJudge;
+  if(!j){bbSet($('#bbJudgePanel'),S.isMarshal?'<div class="panel"><p class="none" style="margin:0">Add yourself as a judge to vote here.</p></div>':'','jpanel');return;}
+  if(!B||br.phase!=='voting'){bbSet($('#bbJudgePanel'),`<div class="panel"><h2>Your ballots</h2><p class="muted" style="margin:0">${!B?'The bracket hasn’t been drawn yet.':br.phase==='entries'?'Bards are posting their performances. Voting opens when the organizer closes entries; you can preview links on the Bracket tab.':'No round is open for voting right now.'}</p></div>`,'jpanel');return;}
+  const live=(B.rounds[r]||[]).filter(M=>M.state==='live');
+  const ballots=live.map((M,i)=>{const mine=S.bb.votes[S.tid+'__'+M.id+'__'+me]||{}, dr=(S.bb.draft||{})[M.id]||{}, pick=dr.pick??mine.pick??'', dragon=dr.dragon??mine.dragon??[];
+    const side=p=>{const sub=subFor(p,r);return `<div class="bbm"><label class="vote"><input type="radio" name="pick-${M.id}" data-pick="${M.id}" value="${esc(p)}" ${pick===p?'checked':''}><b>${esc(bbName(p))}</b></label>
+      ${sub?`<a class="orkl" href="${esc(sub.url)}" target="_blank" rel="noopener">▶ ${esc(sub.note||'Open performance')}</a>`:'<span class="muted">No link submitted</span>'}
+      <label style="font-size:.9rem"><input type="checkbox" data-dragon="${M.id}" value="${esc(p)}" ${dragon.includes(p)?'checked':''}> Flag for the Order of the Dragon</label></div>`;};
+    return `<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><b>Match ${i+1}</b>${mine.pick?`<span class="scorepill done">Voted: ${esc(bbName(mine.pick))}</span>`:'<span class="scorepill">Not voted</span>'}</div>
+      <div class="as-grid">${side(M.p1)}${side(M.p2)}</div><div class="row"><button class="btn" data-act="bbVote" data-m="${M.id}">${mine.pick?'Update vote':'Cast vote'}</button></div></div>`;}).join('');
+  const inRound=[...new Set(live.flatMap(M=>[M.p1,M.p2]))], jcMine=S.bb.votes[S.tid+'__jc'+r+'__'+me];
+  const jc=`<div class="entry"><b>Judges’ Choice for ${esc(roundName(B.R,r))}</b><div class="row"><select id="bbJc" aria-label="Judges’ Choice" style="max-width:320px"><option value="">Choose a standout performance…</option>${inRound.map(b=>`<option value="${esc(b)}" ${(jcMine&&jcMine.pick)===b?'selected':''}>${esc(bbName(b))}</option>`).join('')}</select>
+    <button class="btn" data-act="bbJcVote">${jcMine?'Update':'Save'}</button></div><p class="foot" style="margin:0">An honor for the round’s standout performance. It doesn’t change who advances.</p></div>`;
+  bbSet($('#bbJudgePanel'),`<div class="panel"><h2>Your ballots · ${esc(roundName(B.R,r))}</h2>${ballots||'<p class="none">No contested matches this round.</p>'}${inRound.length?jc:''}</div>`,'jpanel');
+}
+document.addEventListener('change',e=>{const t=e.target; S.bb.draft=S.bb.draft||{};
+  if(t.dataset&&t.dataset.pick){(S.bb.draft[t.dataset.pick]||(S.bb.draft[t.dataset.pick]={})).pick=t.value;}
+  else if(t.dataset&&t.dataset.dragon){const m=t.dataset.dragon; const cur=[...document.querySelectorAll(`[data-dragon="${m}"]:checked`)].map(i=>i.value); (S.bb.draft[m]||(S.bb.draft[m]={})).dragon=cur;}
+  else if(t.id==='bbHeadSel'){const v=t.value.trim().toLowerCase(); if(!/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(v)){toast('Enter the head judge’s full email address.');return;} w(()=>S.db.doc('tournaments/'+S.tid).update({'bb.head':v}));}
+});
+
+/* ---------- Awards tab ---------- */
+function bbRecs(){const br=S.bb.br||{}, df=br.df||{}, jc=br.jc||{}, B=bbBracket();
+  const jcCount={}; Object.values(jc).forEach(b=>{if(b) jcCount[b]=(jcCount[b]||0)+1;});
+  return S.bb.bards.filter(b=>df[b.id]||jcCount[b.id]).map(b=>{const lad=b.orkId&&S.awards.players[b.orkId]&&S.awards.players[b.orkId].l; const cur=lad?Number(lad[25]||0):null;
+    const wins=B?B.rounds.flat().filter(M=>M.state==='done'&&M.win===b.id).length:0;
+    return {b,k:'bb'+b.id.split('__')[1],flags:df[b.id]||0,jc:jcCount[b.id]||0,wins,cur,next:cur==null?null:Math.min(10,cur+1),state:cur==null?'unknown':cur>=10?'met':'recommend',champ:B&&B.final.win===b.id};})
+   .sort((a,b)=>b.flags-a.flags||b.jc-a.jc||b.wins-a.wins);}
+function bbRecText(r){const t=T(), B=bbBracket(), jr=Object.entries((S.bb.br||{}).jc||{}).filter(([,x])=>x===r.b.id).map(([ri])=>B?roundName(B.R,+ri):'');
+  const bits=[r.flags?`flagged for the Order of the Dragon by ${r.flags} judge vote${r.flags===1?'':'s'}`:'',jr.length?`named Judges’ Choice (${jr.join(', ')})`:'',r.champ?'won the championship':r.wins?`won ${r.wins} match${r.wins===1?'':'es'}`:''].filter(Boolean);
+  return `Recommended for the Order of the Dragon, ${ordinalN(r.next||1)} order. At ${t.name} (Battle of the Bards, ${longDateT(t.date)}${t.park?', '+t.park:''}), ${r.b.name} ${bits.join('; ')}. Submitted from Field Marshal.`;}
+function renderBBAwards(){
+  const t=T(), root=$('#bb-bbawards');
+  if(!$('#bbOrkSlot')){root.innerHTML=`<div id="bbOrkSlot"></div><div id="bbAwardList"></div>`; placeOrkAuthBB();}
+  if(S.isMarshal&&!S.bb.autoLadder[S.tid]&&S.bb.bards.length){S.bb.autoLadder[S.tid]=true;setTimeout(()=>bbLadders(false),0);}
+  renderOrkAuth();
+  const rows=bbRecs().map(r=>{const id=S.tid+'__'+r.k, st=S.recs[id]?.status, via=S.recs[id]?.via, sk='bborksend:'+r.k;
+    const status=st==='submitted'?`<span class="st done">${via==='ork'?'Sent to ORK':'Submitted'}</span>`:st==='dismissed'?'<span class="st met">Dismissed</span>'
+      :r.state==='recommend'?`<span class="st rec">Recommend Dragon ${r.next}</span>`:r.state==='unknown'?'<span class="st unk">Check ORK level</span>':'<span class="st met">Already at 10</span>';
+    const send=S.orkAuth&&r.state==='recommend'&&r.b.orkId&&via!=='ork'?`<button class="btn sm ${S.confirm===sk?'armed':''}" data-act="bbOrkSend" data-k="${esc(r.k)}">${S.confirm===sk?`Tap again to send Dragon ${r.next}`:`Send Dragon ${r.next} to ORK`}</button>`:'';
+    const copy=r.b.orkId?`<a class="btn sm ghost" href="${ORK_URL(r.b.orkId)}" target="_blank" rel="noopener" data-act="bbOrkCopy" data-k="${esc(r.k)}">Recommend in ORK</a>`:'<span class="muted" style="font-size:.85rem">No ORK ID</span>';
+    return `<tr><td class="fp"><b>${esc(r.b.name)}</b><small>${esc(r.b.park||'')}${r.b.orkId?' · '+orkLink(r.b.orkId):''}</small></td><td class="n">${r.flags}</td><td class="n">${r.jc}</td><td class="n">${r.wins}</td><td>${r.cur==null?'unknown':r.cur}</td>
+      <td>${status}<div class="acts" style="margin-top:6px">${send}${copy}<button class="btn sm ghost ${st==='submitted'?'on':''}" data-act="bbRec" data-k="${esc(r.k)}" data-v="submitted">Submitted</button><button class="btn sm ghost ${st==='dismissed'?'on':''}" data-act="bbRec" data-k="${esc(r.k)}" data-v="dismissed">Dismiss</button></div>
+      <details class="rtext"><summary>Reason text for the ORK</summary><textarea readonly rows="4">${esc(bbRecText(r))}</textarea></details></td></tr>`;}).join('');
+  bbSet($('#bbAwardList'),`<div class="panel"><div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:10px"><h2 style="margin:0">Order of the Dragon recommendations</h2><button class="btn sm ghost" data-act="bbLadders">Refresh ORK award levels</button></div>
+    ${rows?`<div class="scroll"><table><thead><tr><th>Bard</th><th class="n">Dragon flags</th><th class="n">Judges’ Choice</th><th class="n">Wins</th><th>Dragon now</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="none">No bard has been flagged yet. Judges flag performances for the Dragon on their ballots, and Judges’ Choice honorees appear here too.</p>'}
+    <p class="foot">Any bard a judge flags for the Order of the Dragon, or who is named Judges’ Choice, is listed, whether or not they won. The recommendation is the next Dragon level above what the ORK shows.</p></div>`,'awards');
+}
+async function bbLadders(manual){const ids=[...new Set(S.bb.bards.map(b=>b.orkId).filter(Boolean))].filter(id=>manual||!(S.awards.players[id]&&S.awards.players[id].l));
+  if(!ids.length){if(manual)toast('No bards with ORK IDs to check.');return;}
+  if(manual) toast(`Checking ${ids.length} ORK profile${ids.length===1?'':'s'}…`);
+  const upd={}; let failed=0; for(const id of ids){try{upd[id]=await orkWarrior(id);}catch(e){failed++;}}
+  if(Object.keys(upd).length) await w(()=>S.db.doc('ork/awards').set({updatedAt:stamp(),players:{...S.awards.players,...upd}},{merge:true}));
+  if(failed) toast(`Couldn’t reach the ORK for ${failed} bard${failed===1?'':'s'}.`); else if(manual) toast('Award levels updated.');}
+
+/* ---------- actions ---------- */
+async function bbSaveBr(patch){const cur=S.bb.br||{}; const next={...cur,...patch,tid:S.tid,updatedAt:Date.now()}; S.bb.br=next; render(); return w(()=>S.db.doc('bbr/'+S.tid).set(next));}
+Object.assign(H2,{
+  bbLeave:async()=>{if(!arm('bbleave'))return; try{await S.db.doc('bards/'+myBid()).delete();toast('You’ve withdrawn.');}catch(e){toast('Couldn’t withdraw. Try again.');}},
+  bbRemove:ds=>{if(!arm('bbrm:'+ds.b))return; w(()=>S.db.doc('bards/'+ds.b).delete());},
+  bbDraw:async()=>{const bs=S.bb.bards.map(b=>b.id); if(bs.length<2){toast('Needs at least two bards.');return;}
+    if(S.bb.br&&!arm('bbredraw')) return;
+    const sh=bs.slice(); for(let i=sh.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[sh[i],sh[j]]=[sh[j],sh[i]];}
+    let P=2; while(P<sh.length) P*=2;
+    await w(()=>S.db.doc('tournaments/'+S.tid).update({signupsOpen:false}));
+    await bbSaveBr({slots:seedOrder(P).map(n=>sh[n-1]||null),seeds:Object.fromEntries(sh.map((b,i)=>[b,i+1])),w:{},v:{},jc:{},df:{},ties:[],round:0,phase:'setup',drawnAt:Date.now()});
+    toast(`Bracket drawn: ${sh.length} bards${P>sh.length?`, ${P-sh.length} bye${P-sh.length===1?'':'s'}`:''}.`);},
+  bbPhase:ds=>bbSaveBr({phase:ds.v}),
+  bbNext:()=>{const B=bbBracket(), r=(S.bb.br.round||0)+1; if(!B||r>=B.R) return; bbSaveBr({round:r,phase:'entries'});},
+  bbClose:async()=>{const B=bbBracket(), br=S.bb.br, r=br.round||0; if(!B) return;
+    const live=(B.rounds[r]||[]).filter(M=>M.state==='live'); const votes=Object.values(S.bb.votes);
+    const empty=live.filter(M=>!votes.some(v=>v.m===M.id)); if(empty.length){toast(`No votes yet on ${empty.length} match${empty.length===1?'':'es'}. Wait for the judges before closing.`);return;}
+    if(!arm('bbclose')) return;
+    const W={...(br.w||{})}, V={...(br.v||{})}, ties=[];
+    live.forEach(M=>{const c={[M.p1]:0,[M.p2]:0}; votes.filter(v=>v.m===M.id&&c[v.pick]!=null).forEach(v=>c[v.pick]++); V[M.id]=c;
+      if(c[M.p1]===c[M.p2]) ties.push({m:M.id,opts:[M.p1,M.p2]}); else W[M.id]=c[M.p1]>c[M.p2]?M.p1:M.p2;});
+    const jcv={}; votes.filter(v=>v.m==='jc'+r&&v.pick).forEach(v=>jcv[v.pick]=(jcv[v.pick]||0)+1);
+    const JC={...(br.jc||{})}; const top=Math.max(0,...Object.values(jcv)); const lead=Object.keys(jcv).filter(b=>jcv[b]===top);
+    if(top>0){if(lead.length===1) JC[r]=lead[0]; else ties.push({m:'jc'+r,opts:lead});}
+    const df={}; votes.forEach(v=>(v.dragon||[]).forEach(b=>df[b]=(df[b]||0)+1));
+    const phase=ties.length?'tie':(r===B.R-1?'done':'closed');
+    await bbSaveBr({w:W,v:V,jc:JC,df,ties,phase}); toast(ties.length?`${ties.length} tie${ties.length===1?'':'s'} for the head judge to break.`:'Round closed.');},
+  bbTieBreak:async ds=>{const br=S.bb.br, B=bbBracket(); if(!br||!B) return; const ties=(br.ties||[]).filter(x=>x.m!==ds.m);
+    const patch={ties}; if(ds.m.startsWith('jc')) patch.jc={...(br.jc||{}),[ds.m.slice(2)]:ds.b}; else patch.w={...(br.w||{}),[ds.m]:ds.b};
+    if(!ties.length) patch.phase=(br.round||0)===B.R-1?'done':'closed';
+    await bbSaveBr(patch); toast(`Tie broken: ${bbName(ds.b)}.`);},
+  bbFinalize:async()=>{if(!arm('bbfin'))return; if(await w(()=>S.db.doc('tournaments/'+S.tid).update({status:'final',finalizedAt:Date.now()}))) toast('Battle of the Bards is final.');},
+  bbAddJudge:async()=>{const em=$('#bjEmail').value.trim().toLowerCase(); if(!/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(em)){toast('Enter a full email address.');return;}
+    if(await w(()=>S.db.doc('judges/'+S.tid+'__'+em).set({tid:S.tid,email:em,cats:[],at:Date.now()}))){$('#bjEmail').value='';toast(`${em} can now judge.`);}},
+  bbRmJudge:ds=>{if(!arm('bbrmJ:'+ds.j))return; w(()=>S.db.doc('judges/'+ds.j).delete());},
+  bbVote:async ds=>{const B=bbBracket(), br=S.bb.br, r=br.round||0, me=myEmail(); const M=(B.rounds[r]||[]).find(x=>x.id===ds.m); if(!M) return;
+    const picked=document.querySelector(`[data-pick="${ds.m}"]:checked`); if(!picked){toast('Choose which bard wins this match.');return;}
+    const dragon=[...document.querySelectorAll(`[data-dragon="${ds.m}"]:checked`)].map(i=>i.value);
+    try{await S.db.doc('bvotes/'+S.tid+'__'+ds.m+'__'+me).set({tid:S.tid,m:ds.m,round:r,judge:me,pick:picked.value,dragon,at:Date.now()}); if(S.bb.draft) delete S.bb.draft[ds.m]; toast(`Vote saved for ${bbName(picked.value)}.`);}
+    catch(err){console.error(err);toast(err.code==='permission-denied'?'Voting for this round is closed, or you’re not on the judge list.':'Couldn’t save your vote. Try again.');}},
+  bbJcVote:async()=>{const r=(S.bb.br||{}).round||0, me=myEmail(), v=$('#bbJc').value; if(!v){toast('Choose a performance first.');return;}
+    try{await S.db.doc('bvotes/'+S.tid+'__jc'+r+'__'+me).set({tid:S.tid,m:'jc'+r,round:r,judge:me,pick:v,dragon:[],at:Date.now()}); toast('Judges’ Choice vote saved.');}
+    catch(err){toast('Couldn’t save. Voting may be closed.');}},
+  bbLadders:()=>bbLadders(true),
+  bbRec:ds=>{const id=S.tid+'__'+ds.k, cur=S.recs[id]?.status, r=bbRecs().find(x=>x.k===ds.k);
+    if(cur===ds.v){delete S.recs[id];render();w(()=>S.db.doc('recs/'+id).delete());return;}
+    const data={tid:S.tid,key:ds.k,status:ds.v,award:25,lvl:r?r.next:null,at:Date.now()}; S.recs[id]=data; render(); w(()=>S.db.doc('recs/'+id).set(data));},
+  bbOrkCopy:ds=>{const r=bbRecs().find(x=>x.k===ds.k); if(!r) return; try{navigator.clipboard.writeText(bbRecText(r)).then(()=>toast('Reason copied. On their ORK page, choose Recommend and paste it in.'),()=>toast('Couldn’t copy. Open "Reason text for the ORK" and copy it.'));}catch(e){}},
+  bbOrkSend:async ds=>{const r=bbRecs().find(x=>x.k===ds.k); if(!r||r.state!=='recommend'||!S.orkAuth) return; if(!arm('bborksend:'+ds.k)) return;
+    try{const d=await orkPost({call:'Player/AddAwardRecommendation','request[Token]':S.orkAuth.token,'request[MundaneId]':r.b.orkId,'request[AwardId]':'25','request[Rank]':String(r.next),'request[Reason]':bbRecText(r)});
+      const s=orkStat(d), msg=plain(s.msg), id=S.tid+'__'+r.k;
+      const mark=async()=>{const data={tid:S.tid,key:r.k,status:'submitted',via:'ork',award:25,lvl:r.next,orkUser:S.orkAuth?.user||'',at:Date.now()};S.recs[id]=data;await w(()=>S.db.doc('recs/'+id).set(data));};
+      if(s.code===0){await mark();toast(`Sent. ${r.b.name} is recommended for Dragon ${r.next} in the ORK.`);}
+      else if(s.code===2||(s.code===5&&!msg)){S.orkAuth=null;toast('Your ORK sign-in expired. Sign in again, then resend.');}
+      else if(/already recommended/i.test(msg)){await mark();toast('You already recommended that level in the ORK. Marked as sent.');}
+      else toast(msg||'The ORK didn’t accept that recommendation.');
+    }catch(e){toast('Couldn’t reach the ORK. Nothing was sent.');}
+    render();},
+});
+['bbRemove','bbDraw','bbPhase','bbNext','bbClose','bbFinalize','bbAddJudge','bbRmJudge','bbRec','bbOrkSend','bbLadders'].forEach(a=>WRITE_ACTS.add(a));
 
 /* ---------- live data ---------- */
 (async()=>{
