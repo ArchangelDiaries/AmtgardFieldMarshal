@@ -2,14 +2,14 @@
 // Replaces the old _redirects relay, which Cloudflare now blocks. Follows the ORK team's
 // "Amtgard ORK — API Access" document. Netlify environment variables (scope: Functions):
 //   ORK_API_KEY   the 64-character key from the ORK administrators (secret; never commit it)
-//   ORK_CLIENT    optional product token, default "FieldMarshal/1.1" (plain text, NOT the key)
+//   ORK_CLIENT    optional product token, default "Field Marshal/1.0" (plain text, NOT the key)
 //   ORK_CONTACT   optional contact email for the User-Agent
 //
 // Only the calls Field Marshal uses are forwarded, and only for pages on this site, so the key
 // can't be borrowed as an open relay. Anything secret (password, Token) travels in a POST body.
 
 const ORK_JSON = 'https://ork.amtgard.com/orkservice/Json/index.php';
-const CLIENT = process.env.ORK_CLIENT || 'FieldMarshal/1.1';
+const CLIENT = process.env.ORK_CLIENT || 'Field Marshal/1.0';
 const SITE = process.env.URL || 'https://srfieldmarshal.netlify.app';
 const UA = `${CLIENT} (+${SITE}${process.env.ORK_CONTACT ? `; ${process.env.ORK_CONTACT}` : ''})`;
 

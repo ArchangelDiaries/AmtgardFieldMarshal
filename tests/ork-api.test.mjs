@@ -8,7 +8,7 @@ test('GET search is forwarded with key headers', async () => {
   const r = await handler(new Request('https://fm.test/ork-api?call=SearchService/Player&type=All&search=Dragoth&limit=25'), { fetchImpl });
   assert.equal(r.status, 200);
   const c = cap.at(-1); assert.match(c.u, /call=SearchService%2FPlayer/); assert.match(c.u, /search=Dragoth/);
-  assert.equal(c.o.headers['X-Ork-Key'], 'f'.repeat(64)); assert.match(c.o.headers['X-ORK-Client'], /^FieldMarshal\//);
+  assert.equal(c.o.headers['X-Ork-Key'], 'f'.repeat(64)); assert.match(c.o.headers['X-ORK-Client'], /^Field Marshal\//);
   assert.ok(!c.u.includes('f'.repeat(64)));
 });
 test('POST sign-in keeps the password in the body, not the URL', async () => {

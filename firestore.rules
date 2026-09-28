@@ -14,6 +14,40 @@ service cloud.firestore {
     function isMarshal() {
       return signedIn() && exists(/databases/$(database)/documents/marshals/$(myEmail()));
     }
+    function isJudge(tid) {
+      return signedIn() && exists(/databases/$(database)/documents/judges/$(tid + '__' + myEmail()));
+    }
+    function artsOpen(tid) {
+      return exists(/databases/$(database)/documents/tournaments/$(tid))
+        && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('kind', 'combat') == 'arts'
+        && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('signupsOpen', true) == true
+        && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('status', 'open') != 'final';
+    }
+    function validEntry(d) {
+      return d.keys().hasOnly(['tid', 'name', 'park', 'orkId', 'sub', 'title', 'writeup', 'links', 'at'])
+        && d.keys().hasAll(['tid', 'name', 'sub', 'title', 'writeup', 'at'])
+        && d.tid is string
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && (!('park' in d) || (d.park is string && d.park.size() <= 60))
+        && (!('orkId' in d) || d.orkId == null || (d.orkId is string && d.orkId.size() <= 12))
+        && d.sub is string && d.sub.size() <= 40
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.writeup is string && d.writeup.size() > 0 && d.writeup.size() <= 20000
+        && (!('links' in d) || (d.links is list && d.links.size() <= 5))
+        && d.at is number
+        && artsOpen(d.tid);
+    }
+    function validScore(id, d) {
+      return isJudge(d.tid)
+        && d.keys().hasOnly(['tid', 'eid', 'judge', 'score', 'feedback', 'at'])
+        && d.judge == myEmail()
+        && id == d.eid + '__' + myEmail()
+        && d.score is number
+        && d.score >= get(/databases/$(database)/documents/tournaments/$(d.tid)).data['as']['min']
+        && d.score <= get(/databases/$(database)/documents/tournaments/$(d.tid)).data['as']['max']
+        && (!('feedback' in d) || (d.feedback is string && d.feedback.size() <= 5000))
+        && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('status', 'open') != 'final';
+    }
     function validRequest(d) {
       return d.keys().hasOnly(['tid', 'name', 'park', 'orkId', 'divs', 'at'])
         && d.keys().hasAll(['tid', 'name', 'divs', 'at'])
@@ -44,6 +78,43 @@ service cloud.firestore {
     match /marshals/{mail} {
       allow get: if signedIn() && myEmail() == mail;
       allow read, write: if isMarshal();
+    }
+
+    // Arts & Sciences (Dragonmaster) events.
+    match /entries/{id} {
+      allow read: if true;
+      allow create: if validEntry(request.resource.data) || isMarshal();
+      allow update, delete: if isMarshal();
+    }
+    // Secret key for each entrant's private feedback link. Anyone can create one with their entry; only marshals read them.
+    match /entrykeys/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['tid', 'key'])
+        && request.resource.data.key is string
+        && request.resource.data.key.size() >= 24 && request.resource.data.key.size() <= 64
+        && existsAfter(/databases/$(database)/documents/entries/$(id));
+      allow read, update, delete: if isMarshal();
+    }
+    // Judges: doc id is {tid}__{email}. A signed-in person may check their own entry.
+    match /judges/{id} {
+      allow get: if signedIn() && id.split('__')[1] == myEmail();
+      allow read, write: if isMarshal();
+    }
+    // Scores: judges write their own; judges of the event and marshals can read.
+    match /scores/{id} {
+      allow read: if isMarshal() || isJudge(resource.data.tid);
+      allow create, update: if validScore(id, request.resource.data);
+      allow delete: if isMarshal();
+    }
+    // Public judged averages (no individual scores).
+    match /asResults/{tid} {
+      allow read: if true;
+      allow write: if isMarshal() || isJudge(tid);
+    }
+    // Published at finalize. Readable only by someone holding the unguessable link.
+    match /feedback/{key} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if isMarshal();
     }
 
     // Player signup requests.

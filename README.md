@@ -51,12 +51,13 @@ It's a single web page backed by a free Google Firebase database. Setup takes ab
 
 After this you can add every other marshal from inside the app.
 
-### 7. Put the app online (Netlify, free)
-1. Go to <https://app.netlify.com/drop> and sign up or log in.
-2. Drag this whole folder onto the page. Netlify gives you a web address like `random-name-123.netlify.app`.
-3. Under **Site configuration → Change site name**, pick something memorable, such as `field-marshal-stone-rivers`.
+### 7. Put the app online (Netlify, free, from GitHub)
+Field Marshal now includes a small Netlify Function that talks to the ORK with Field Marshal's ORK API key, and Netlify Drop (drag-and-drop) doesn't deploy functions. So:
+1. Put this whole folder in a GitHub repository, replacing every file (including the `netlify` and `tests` folders).
+2. In Netlify, link the existing site to that repo (**Site configuration → Build & deploy → Link repository**) or create a site with **Add new site → Import from Git**. `netlify.toml` already sets everything up.
+3. Add `ORK_API_KEY` under **Site configuration → Environment variables** (secret, Functions scope). See "ORK access" below.
 
-When you change a file later (for example a new version of `index.html`), open the site in Netlify, go to **Deploys**, and drag the folder in again.
+When you change a file later, commit the new files to GitHub and Netlify redeploys on its own.
 
 ### 8. Allow that web address to sign in
 1. In Firebase, go to **Authentication → Settings → Authorized domains → Add domain**.
@@ -85,9 +86,25 @@ In the Wix editor, add a button or menu item that links to your Netlify address.
 - **Awards (marshals only):** each fighter's Order of the Warrior level loads from the ORK. Fighters who earned a higher level (by consecutive wins or placement, per the Rulebook 8.08 award standards) are flagged, and you can mark each recommendation Submitted or Dismissed. Next to each flagged fighter, **Recommend in ORK** copies a ready-made reason and opens their ORK profile. There, choose Recommend, pick Order of the Warrior and the level, paste the reason, then mark it **Submitted** in Field Marshal.
 - **Send straight to the ORK:** at the top of the Awards tab, sign in with your own ORK username and password. Each flagged fighter then gets a **Send Warrior N to ORK** button (tap twice to confirm). It files the recommendation in the ORK under your name with the reason filled in, and marks it **Sent to ORK** in Field Marshal. Your password is sent privately to the ORK through the site's relay, never saved, and never put in a web address. The ORK sign-in lasts until you reload or close the page, and **Sign out of the ORK** ends it right away. Only fighters whose current Warrior level has loaded from the ORK can be sent, because the ORK needs the exact level.
 
+## Arts & Sciences (Dragonmaster) events
+
+Field Marshal also runs A&S tournaments. In **New tournament**, set **Type** to **Arts & Sciences (Dragonmaster)**, then choose:
+- the **score range** judges use (for example 1 to 5), always in .25 steps
+- how many **sub-categories count** toward a player's Dragonmaster score (Westmarch midreign counts 5)
+- the **award threshold**, the average at or above which an entry is flagged for an award recommendation
+- which of the 32 **sub-categories** are offered (Garb, Art, Literature, Cooking, Construction, Bardic, Rose)
+
+An A&S event has its own tabs:
+- **Entries:** anyone can submit an entry without an account: persona (with "Find me in the ORK"), park, sub-category, title, a documentation writeup and up to 5 links to photos or documents. Each entrant gets a **private feedback link** to save. Marshals can move an entry to another sub-category or withdraw it.
+- **Judging:** the A&S Crat (any marshal) adds judges by Google email and can limit each judge to certain categories. Judges sign in with **Marshal sign-in**, see only the entries they judge, and enter a score in the event's range plus written feedback for each one. Judges never see each other's scores. The crat sees scoring progress for every entry.
+- **Scores:** Dragonmaster standings (the sum of each player's best average per sub-category, top N sub-categories) and results by sub-category. The public sees them once the event is finalized, or earlier if you tick "Show scores to everyone before finalizing". **Finalize event** locks scoring, closes entries, and publishes each entrant's scores and feedback to their private link, with judges shown as Judge 1, Judge 2 and so on.
+- **Awards:** entries at or above the threshold flag the next level of their order: Garb → Garber, Art / Literature / Cooking / Bardic → Dragon, Construction → Owl, Rose → Rose. It's one flag per player per order, from their best entry. **Send to ORK**, **Recommend in ORK**, and **Submitted** / **Dismiss** work the same as combat awards. Current levels load from each entrant's ORK profile when they give an ORK ID.
+
+**Updating from an earlier version:** paste the new `firestore.rules` into Firestore → Rules and **Publish**. The A&S tabs need the new rules for entries, judges, scores and feedback.
+
 ## Updating from an earlier version
 
-If you already set up Field Marshal before the Players and Parks tabs existed, paste the new `firestore.rules` into Firestore → Rules and click **Publish** again (it adds the tournament history). Then drag the folder into Netlify's Deploys tab as usual. History for past tournaments builds itself the first time a marshal opens the site.
+If you already set up Field Marshal before the Players and Parks tabs existed, paste the new `firestore.rules` into Firestore → Rules and click **Publish** again (it adds the tournament history). Then push the new files to GitHub. History for past tournaments builds itself the first time a marshal opens the site.
 
 ## Good to know
 
@@ -96,9 +113,8 @@ If you already set up Field Marshal before the Players and Parks tabs existed, p
 - **Free-plan limits:** the Spark plan allows 50,000 reads and 20,000 writes a day. Every person with the page open reads the tournament data once and then only receives changes, which is well inside the limit for a park or principality event.
 - **Backups:** Firebase keeps the data. To keep your own copy, use Firestore's export, or ask Claude to export it for you.
 
-
 ## Links with FORK (event management)
-- Open a tournament directly: `https://srfieldmarshal.netlify.app/?t=<tournament id>`. Add `&tab=signups` (or pits, brackets, board, players, parks, awards) to open a tab. The address bar updates as you switch tournaments, so you can copy it to share or to link a tournament in FORK.
+- Open a tournament directly: `https://srfieldmarshal.netlify.app/?t=<tournament id>`. Add `&tab=signups` (or pits, brackets, board, players, parks, awards; for A&S events entries, judging, asboard, asawards) to open a tab. The address bar updates as you switch tournaments, so you can copy it to share or to link a tournament in FORK.
 - Tournaments created from FORK carry `fork: { eventId, name, url }`. The tournament header shows "Part of <event>" with a link back to the FORK event page.
 - No rule changes are needed: marshals can already write any tournament field, and FORK's signup requests use the existing `requests` format.
 
@@ -113,4 +129,4 @@ The ORK is now behind Cloudflare's bot check, which blocks the old `_redirects` 
 **Safety built into the function**
 - It only forwards the six ORK calls Field Marshal uses: player search, active players, awards, sign-in, sign-out and award recommendation. It only answers pages on this site, so nobody else can borrow the key.
 - ORK sign-in, sign-out and recommendations must be sent as POST, so passwords and session tokens stay out of URLs and logs, as the ORK team asks.
-- The key goes only in the `X-Ork-Key` header. `X-ORK-Client` is `FieldMarshal/1.1`.
+- The key goes only in the `X-Ork-Key` header. `X-ORK-Client` is `Field Marshal/1.0`.

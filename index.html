@@ -422,14 +422,6 @@ const S={db:null,ready:false,offline:false,tournaments:[],fighters:{},signups:[]
   board:{scope:'tournament',kills:true,div:'all'},confirm:null,editSeeds:{},formTid:undefined,seen:new Set(),roster:{players:[]},tallies:{},awards:{players:{}},recs:{},results:{},resultsSeen:false,backfilled:new Set(),boutsTid:undefined,boutsReady:false,player:null,copied:{},pq:'',pdiv:'all',pmetric:'pts',park:null};
 try{const t=localStorage.getItem('lists.tab'); if(t) S.tab=t; const b=JSON.parse(localStorage.getItem('lists.board')||'null'); if(b) Object.assign(S.board,b);}catch(e){}
 const saveLocal=()=>{try{localStorage.setItem('lists.tab',S.tab);localStorage.setItem('lists.board',JSON.stringify(S.board));}catch(e){}};
-/* Links with FORK (event management): FORK writes t.fork = {eventId, name, url} on tournaments it creates,
-   and opens a tournament directly with ?t=<tournament id>. */
-const forkLink=t=>{const f=t&&t.fork; if(!f||!f.name) return '';
-  const url=/^https:\/\//.test(f.url||'')?f.url:''; 
-  return `<span>Part of ${url?`<a class="orkl" href="${esc(url)}" target="_blank" rel="noopener">${esc(f.name)}</a>`:`<b>${esc(f.name)}</b>`}</span>`;};
-let deepT=null; try{const q=new URLSearchParams(location.search); deepT=q.get('t');
-  const tb=q.get('tab'); if(['signups','pits','brackets','board','players','parks','awards'].includes(tb)) S.tab=tb;}catch(e){}
-const setUrlT=tid=>{try{const u=new URL(location.href); if(tid) u.searchParams.set('t',tid); else u.searchParams.delete('t'); history.replaceState(null,'',u);}catch(e){}};
 
 const T=()=>S.tournaments.find(t=>t.id===S.tid);
 const tByid=id=>S.tournaments.find(t=>t.id===id);
@@ -442,6 +434,14 @@ const signupsFor=tid=>S.signups.filter(s=>s.tid===tid);
 const inDiv=(tid,d)=>signupsFor(tid).filter(s=>(s.divs||[]).includes(d)).map(s=>s.fid).sort((a,b)=>fname(a).localeCompare(fname(b)));
 const boutsFor=(tid,d)=>S.bouts.filter(b=>b.tid===tid&&(!d||b.div===d));
 const tc=k=>`--tc:var(--t-${k})`;
+/* Links with FORK (event management): FORK writes t.fork = {eventId, name, url} on tournaments it creates,
+   and opens a tournament directly with ?t=<tournament id>&tab=<tab>. */
+const forkLink=t=>{const f=t&&t.fork; if(!f||!f.name) return '';
+  const url=/^https:\/\//.test(f.url||'')?f.url:'';
+  return `<span>Part of ${url?`<a class="orkl" href="${esc(url)}" target="_blank" rel="noopener">${esc(f.name)}</a>`:`<b>${esc(f.name)}</b>`}</span>`;};
+let deepT=null; try{const q=new URLSearchParams(location.search); deepT=q.get('t');
+  const tb=q.get('tab'); if(['signups','pits','brackets','board','players','parks','awards','entries','judging','asboard','asawards'].includes(tb)) S.tab=tb;}catch(e){}
+const setUrlT=tid=>{try{const u=new URL(location.href); if(tid) u.searchParams.set('t',tid); else u.searchParams.delete('t'); history.replaceState(null,'',u);}catch(e){}};
 const sw=k=>`<span class="sw" style="${tc(k)}"></span>`;
 const ORK_URL=id=>'https://ork.amtgard.com/orkui/index.php?Route=Player/index/'+encodeURIComponent(id);
 const parseOrk=s=>{const m=String(s||'').match(/(\d{2,9})(?!.*\d)/);return m?m[1]:'';};
@@ -654,8 +654,8 @@ function computeSummary(tid,bl){
   return out;
 }
 function summaries(){
-  const out={}; Object.values(S.results).forEach(r=>{if(r&&r.tid&&tByid(r.tid)) out[r.tid]=r;});
-  if(S.tid&&T()&&S.boutsTid===S.tid){const live=computeSummary(S.tid); if(live) out[S.tid]=live;}
+  const out={}; Object.values(S.results).forEach(r=>{if(r&&r.tid&&tByid(r.tid)&&tByid(r.tid).kind!=='arts') out[r.tid]=r;});
+  if(S.tid&&T()&&T().kind!=='arts'&&S.boutsTid===S.tid){const live=computeSummary(S.tid); if(live) out[S.tid]=live;}
   return Object.values(out).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.name||'').localeCompare(b.name||''));
 }
 const sumTimers={};
@@ -1092,7 +1092,7 @@ const H={
     await w(()=>S.db.doc('results/'+tid).delete()); await w(()=>S.db.doc('tournaments/'+tid).delete()); S.tid=null; toast('Tournament deleted.');},
 };
 document.addEventListener('click',e=>{const el=e.target.closest('[data-act]'); if(!el||el.disabled) return;
-  const a=el.dataset.act; if(WRITE_ACTS.has(a)&&!S.isMarshal&&!(a==='orkpick'&&el.dataset.form==='rq')){toast('Sign in as a marshal to change the lists.');return;}
+  const a=el.dataset.act; if(WRITE_ACTS.has(a)&&!S.isMarshal&&!(a==='orkpick'&&(el.dataset.form==='rq'||el.dataset.form==='ae'))){toast('Sign in as a marshal to change the lists.');return;}
   if(lockedAct(a)) return;
   (H[a]||H2[a])?.(el.dataset,el,e);});
 document.addEventListener('change',e=>{const t=e.target;
@@ -1170,8 +1170,9 @@ Object.assign(S,{user:null,isMarshal:false,requests:[],marshals:[],privSubs:null
 function renderAuth(){const el=$('#auth'); if(!el) return; if(!S.auth){el.innerHTML='';return;}
   if(!S.user){el.innerHTML='<button class="btn ghost" data-act="signin">Marshal sign-in</button>';return;}
   const em=esc(S.user.email||'');
-  el.innerHTML=`<span>${S.isMarshal?'<b>Marshal</b> · ':''}${em}</span><button class="btn sm ghost" data-act="signout">Sign out</button>`
-    +(S.isMarshal?'':`<span style="flex-basis:100%">Not on the marshal list. Ask a marshal to add ${em}.</span>`);}
+  const judge=!S.isMarshal&&S.as&&S.as.myJudge;
+  el.innerHTML=`<span>${S.isMarshal?'<b>Marshal</b> · ':judge?'<b>Judge</b> · ':''}${em}</span><button class="btn sm ghost" data-act="signout">Sign out</button>`
+    +(S.isMarshal||judge?'':`<span style="flex-basis:100%">Not on the marshal or judge list. Ask a marshal to add ${em}.</span>`);}
 
 /* Hide or disable editing controls for non-marshals. Marks what it changed so signing in restores it,
    including the header's static "New tournament" button. */
@@ -1179,7 +1180,7 @@ function gate(){
   if(S.isMarshal){document.querySelectorAll('[data-gated]').forEach(el=>{if(el.dataset.gated==='h')el.hidden=false;else el.disabled=false;delete el.dataset.gated;});return;}
   document.querySelectorAll('.wrap [data-act]').forEach(el=>{const a=el.dataset.act; if(el.dataset.gated) return;
     if(a==='mwin'||a==='ewin'||a==='togdiv'){if(!el.disabled){el.disabled=true;el.dataset.gated='d';}}
-    else if(WRITE_ACTS.has(a)&&!(a==='orkpick'&&el.dataset.form==='rq')){if(!el.hidden){el.hidden=true;el.dataset.gated='h';}}});
+    else if(WRITE_ACTS.has(a)&&!(a==='orkpick'&&(el.dataset.form==='rq'||el.dataset.form==='ae'))){if(!el.hidden){el.hidden=true;el.dataset.gated='h';}}});
   document.querySelectorAll('[data-tally],[data-seed]').forEach(el=>{if(!el.disabled&&!el.dataset.gated){el.disabled=true;el.dataset.gated='d';}});
 }
 
@@ -1231,10 +1232,13 @@ async function orkFind(f){
 function findAwards(d){const q=[d];while(q.length){const v=q.shift();
   if(Array.isArray(v)){if(v.some(o=>o&&typeof o==='object'&&'AwardId' in o))return v;v.forEach(x=>q.push(x));}
   else if(v&&typeof v==='object')Object.values(v).forEach(x=>q.push(x));}return [];}
+/* Reads a player's ladder awards: Warrior (27) with its date, plus Rose 21, Owl 24, Dragon 25, Garber 26 for A&S. */
 async function orkWarrior(id){const d=await orkGet({call:'Player/AwardsForPlayer','request[MundaneId]':id});
-  let w=0,date='';findAwards(d).forEach(a=>{if(String(a.AwardId)!=='27')return;const r=Number(a.Rank)||0;
-    if(r>w){w=r;date=a.Date||'';}else if(r===w&&(a.Date||'')>date)date=a.Date||'';});
-  return {w,date};}
+  let w=0,date='';const l={21:0,24:0,25:0,26:0};
+  findAwards(d).forEach(a=>{const aid=String(a.AwardId),r=Number(a.Rank)||0;
+    if(aid==='27'){if(r>w){w=r;date=a.Date||'';}else if(r===w&&(a.Date||'')>date)date=a.Date||'';}
+    else if(aid in l&&r>l[aid]) l[aid]=r;});
+  return {w,date,l};}
 const stamp=()=>new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 async function refreshWarrior(manual){
   if(S.warBusy||!S.db) return; const ids=[...new Set(signupsFor(S.tid).map(s=>fork(s.fid)).filter(Boolean))].filter(id=>manual||!S.awards.players[id]);
@@ -1306,7 +1310,7 @@ function orkSendButton(r){
 /* ---------- import a backup ---------- */
 async function importBackup(file){
   let data; try{data=JSON.parse(await file.text());}catch(e){toast('That file isn’t a Field Marshal backup.');return;}
-  const allowed=['tournaments','fighters','signups','divisions','bouts','tallies','recs','ork','results'];
+  const allowed=['tournaments','fighters','signups','divisions','bouts','tallies','recs','ork','results','entries','judges','scores','asResults'];
   const ops=[];allowed.forEach(c=>{const docs=data[c];if(docs&&typeof docs==='object')Object.entries(docs).forEach(([id,d])=>{if(d&&typeof d==='object'&&!id.includes('/'))ops.push([c,id,d]);});});
   if(!ops.length){toast('Nothing to import in that file.');return;}
   toast(`Importing ${ops.length} records…`);
@@ -1373,11 +1377,419 @@ H2.orksend=async ds=>{
 };
 
 
+/* =====================================================================
+   Arts & Sciences (Dragonmaster) events — web app only.
+   tournaments/{tid}.kind === 'arts', with as:{min,max,topN,thr,subs[],live}
+   entries/{eid}      public entry (persona, park, orkId, sub, title, writeup, links)
+   entrykeys/{eid}    {tid,key} secret key for the entrant's private feedback link (marshals read)
+   judges/{tid}__{email} {tid,email,cats[]}  (empty cats = all categories)
+   scores/{eid}__{email} {tid,eid,judge,score,feedback,at}
+   asResults/{tid}    {avg:{eid:{a,n}},updatedAt} public averages
+   feedback/{key}     published at finalize; readable only by whoever has the link
+   ===================================================================== */
+const AS_CATS=[
+ {k:'garb',n:'Garb',order:26,subs:[['fighting-garb','Fighting Garb','Made for wear on the battlefield'],['court-garb','Court Garb','Made for wear during court or formal functions'],['monster-garb','Monster Garb','Made for portrayal of a monster class'],['other-garb','Other Garb','Garb not covered by the other garb events'],['garb-accessory','Garb Accessory','Belts, pouches, favors, but not jewelry']]},
+ {k:'art',n:'Art',order:25,subs:[['flat-art','Flat Art (2-D)','Illustration, painting and other 2-D media'],['3d-art','3-D Art','All three-dimensional artistic media'],['needlework','Hand Needlework','Embroidery, latch hook, cross-stitch, knitting, beadwork, etc.'],['jewelry','Jewelry','Items made to be worn as jewelry'],['digital-media','Digital Media','Photography, movies, web pages or digitally enhanced art']]},
+ {k:'lit',n:'Literature',order:25,subs:[['fiction','Fiction','Any fictional work'],['non-fiction','Non-Fiction','Work based on factual events'],['battlegame','Battlegame','A new game to play with Amtgard rules'],['poetry','Poetry','Any type of poetry'],['tutorial','Tutorial','Any instructional document, video or other media']]},
+ {k:'cook',n:'Cooking',order:25,subs:[['main-dish','Main Dish','Food served as a main course'],['appetizer','Appetizer','Served before or separate from a main dish'],['side-dish','Side Dish','Food or condiment served to accompany a meal'],['beverage','Beverage','Any beverage; may be alcoholic'],['dessert','Dessert','Food served primarily as a dessert']]},
+ {k:'cons',n:'Construction',order:24,subs:[['weapon','Weapon','Weapons legal for Amtgard use per the Rules of Play'],['shield','Shield','Shields legal for Amtgard use per the Rules of Play'],['armor','Armor','Any armor for Amtgard use per the Rules of Play'],['banner','Banner','Any banner construction'],['active-construction','Active Construction','Battlefield items not covered by other events'],['passive-construction','Passive Construction','Items not for battlefield use, not covered elsewhere']]},
+ {k:'bardic',n:'Bardic',order:25,subs:[['singing','Singing','With or without accompaniment'],['instrumental','Instrumental Music','Any musical performance with an instrument'],['dance','Dance','Any dancing or choreographed movement'],['recitation','Recitation','Story, poetry, comedy, drama, etc.']]},
+ {k:'rose',n:'Rose',order:21,subs:[['rose','Rose','Items donated that impact an Amtgard group or the kingdom'],['advertising','Advertising','Activity or media that aids a group’s recruitment']]}];
+const AS_ORDER={21:'Rose',24:'Owl',25:'Dragon',26:'Garber'};
+const SUB={}; AS_CATS.forEach(c=>c.subs.forEach(([k,n,d])=>SUB[k]={k,n,d,cat:c.k,catN:c.n,order:c.order}));
+const ALL_SUBS=Object.keys(SUB);
+const AS_TABS=['entries','judging','asboard','asawards'];
+S.as={tid:null,key:'',entries:[],judges:[],myJudge:null,scores:{},scoresReadable:false,results:null,draft:{},subs:[],last:{},formTid:null,autoLadder:{}};
+const isArts=t=>!!t&&t.kind==='arts';
+const asCfg=t=>{const a=(t&&t.as)||{};return {min:Number.isFinite(+a.min)?+a.min:1,max:Number.isFinite(+a.max)?+a.max:5,topN:+a.topN||5,thr:Number.isFinite(+a.thr)?+a.thr:4,subs:Array.isArray(a.subs)&&a.subs.length?a.subs:ALL_SUBS,live:!!a.live};};
+const f2=n=>(Math.round(n*100)/100).toFixed(2);
+const snapQ=v=>Math.round(v*4)/4;
+const playerKey=e=>e.orkId?('o'+e.orkId):('n'+String(e.name||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-'));
+const myEmail=()=>(S.user?.email||'').toLowerCase();
+function setHtml(el,html,key){if(!el)return; if(S.as.last[key]===html)return; const ae=document.activeElement,id=ae&&ae.id,ss=ae&&ae.selectionStart,se=ae&&ae.selectionEnd;
+  el.innerHTML=html; S.as.last[key]=html; if(id){const n=document.getElementById(id); if(n&&n!==ae){n.focus(); try{if(ss!=null)n.setSelectionRange(ss,se);}catch(e){}}}}
+
+/* ---------- page furniture: tabs, sections, new-event form ---------- */
+(function initArtsUI(){
+  const tabs=$('#tabs'); tabs.querySelectorAll('button').forEach(b=>b.classList.add('cb-tab'));
+  [['entries','Entries'],['judging','Judging'],['asboard','Scores'],['asawards','Awards']].forEach(([k,n])=>{const b=document.createElement('button');b.className='as-tab';b.dataset.act='tab';b.dataset.tab=k;b.textContent=n;tabs.appendChild(b);});
+  const anchor=$('#tab-awards');
+  AS_TABS.forEach(k=>{const s=document.createElement('section');s.id='tab-'+k;s.hidden=true;s.innerHTML=`<div id="as-${k}"></div>`;anchor.after(s);});
+  const st=document.createElement('style'); st.textContent=`
+body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{display:none!important}
+.as-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:880px){.as-grid{grid-template-columns:minmax(0,1fr)}}
+.entry{border-top:1px solid var(--line);padding:12px 0;display:grid;gap:6px}
+.entry:first-of-type{border-top:none}
+.entry .meta{color:var(--muted);font-size:.9rem}
+.entry .wu{white-space:pre-wrap;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.95rem;max-height:260px;overflow:auto}
+.jrow{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.jrow input[type=number]{width:7ch;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-weight:800;font-size:1.1rem;text-align:center}
+.jrow textarea,.as-form textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font:inherit;resize:vertical}
+.as-form select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.catgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.catgrid fieldset{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:0}
+.catgrid legend{font-weight:800;padding:0 4px}
+.catgrid label{display:flex;gap:6px;align-items:center;font-size:.92rem;padding:2px 0}
+.fblink{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fblink input{flex:1 1 260px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:.85rem}
+.scorepill{display:inline-block;min-width:3.4em;text-align:center;font-weight:800;border-radius:6px;padding:2px 8px;background:var(--panel2);border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.scorepill.done{border-color:var(--good);color:var(--good)}
+.feedback-view{max-width:760px;margin:24px auto}`;
+  document.head.appendChild(st);
+
+  // New tournament form: Type selector and A&S settings
+  const row=$('#tForm .row');
+  row.insertAdjacentHTML('afterbegin',`<div class="field" style="flex-basis:220px"><label for="tKind">Type</label><select id="tKind"><option value="combat">Combat</option><option value="arts">Arts &amp; Sciences (Dragonmaster)</option></select></div>`);
+  const divBlock=$('#tDivs').parentElement;
+  divBlock.insertAdjacentHTML('beforebegin',`<div id="tArts" hidden class="stack" style="gap:12px">
+    <div class="row">
+      <div class="field" style="flex:0 1 130px"><label for="aMin">Lowest score</label><input id="aMin" type="number" step="0.25" value="1"></div>
+      <div class="field" style="flex:0 1 130px"><label for="aMax">Highest score</label><input id="aMax" type="number" step="0.25" value="5"></div>
+      <div class="field" style="flex:0 1 190px"><label for="aTop">Categories counted</label><input id="aTop" type="number" min="1" max="36" value="5"></div>
+      <div class="field" style="flex:0 1 220px"><label for="aThr">Award threshold</label><input id="aThr" type="number" step="0.25" value="4"></div></div>
+    <p class="foot" style="margin:0">Judges score in .25 steps. Entries averaging at or above the award threshold are flagged for award recommendations. A player’s Dragonmaster score adds their best score in each of their top sub-categories (Westmarch midreign counts 5).</p>
+    <div><div class="lbl" style="margin-bottom:6px">Sub-categories offered</div><div class="catgrid" id="aSubs">${AS_CATS.map(c=>`<fieldset><legend>${c.n}</legend>${c.subs.map(([k,n])=>`<label><input type="checkbox" value="${k}" checked>${esc(n)}</label>`).join('')}</fieldset>`).join('')}</div></div></div>`);
+  const combatBits=[$('#tFormat').closest('.field'),$('#tMinField'),$('#tFormatHelp'),divBlock];
+  const sync=()=>{const arts=$('#tKind').value==='arts'; $('#tArts').hidden=!arts; combatBits.forEach(el=>{if(el) el.hidden=arts;});
+    if(!arts){$('#tMinField').hidden=$('#tFormat').value==='elim';}};
+  document.addEventListener('change',e=>{if(e.target.id==='tKind'||e.target.id==='tFormat')sync();});
+  document.addEventListener('submit',async e=>{
+    if(e.target.id!=='tForm'||$('#tKind').value!=='arts') return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    const min=+$('#aMin').value, max=+$('#aMax').value, topN=Math.max(1,parseInt($('#aTop').value)||5), thr=+$('#aThr').value;
+    const subs=[...document.querySelectorAll('#aSubs input:checked')].map(i=>i.value);
+    if(!(max>min)||snapQ(min)!==min||snapQ(max)!==max){toast('Scores need a lowest and highest value in .25 steps, with the highest above the lowest.');return;}
+    if(!(thr>=min&&thr<=max)){toast('The award threshold has to fall inside the score range.');return;}
+    if(!subs.length){toast('Offer at least one sub-category.');return;}
+    const name=$('#tName').value.trim(); if(!name) return;
+    const data={name,date:$('#tDate').value,park:$('#tPark').value.trim(),level:$('#tLevel').value,kind:'arts',divs:[],signupsOpen:true,
+      as:{min,max,topN,thr,subs,live:false},at:Date.now()};
+    const ref=S.db.collection('tournaments').doc();
+    if(await w(()=>ref.set(data))){S.tid=ref.id;setUrlT(S.tid);S.tab='entries';$('#newT').hidden=true;$('#tName').value='';$('#tKind').value='combat';sync();render();toast(`${name} is open for entries.`);}
+  },true);
+})();
+
+/* ---------- live data for the selected A&S event ---------- */
+function watchArts(){
+  const t=T(); const key=isArts(t)?[S.tid,S.isMarshal?'m':'',myEmail()].join('|'):'';
+  if(key===S.as.key) return; (S.as.unsubs||[]).forEach(u=>u()); S.as.unsubs=[]; S.as.key=key;
+  Object.assign(S.as,{entries:[],judges:[],myJudge:null,scores:{},scoresReadable:false,results:null,last:{}});
+  if(!key||!S.db) return;
+  const tid=S.tid, db=S.db, on=(q,f)=>S.as.unsubs.push(q.onSnapshot(f,e=>console.warn('A&S listener',e.code||e)));
+  on(db.collection('entries').where('tid','==',tid),s=>{S.as.entries=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.at||0)-(b.at||0));render();});
+  on(db.doc('asResults/'+tid),s=>{S.as.results=s.exists?s.data():null;render();});
+  const subScores=()=>on(db.collection('scores').where('tid','==',tid),s=>{S.as.scores=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));S.as.scoresReadable=true;render();});
+  if(S.isMarshal){
+    on(db.collection('judges').where('tid','==',tid),s=>{S.as.judges=s.docs.map(d=>({id:d.id,...d.data()}));S.as.myJudge=S.as.judges.find(j=>j.email===myEmail())||null;render();});
+    subScores();
+  } else if(myEmail()){
+    let sub=false;
+    on(db.doc('judges/'+tid+'__'+myEmail()),s=>{S.as.myJudge=s.exists?s.data():null; if(S.as.myJudge&&!sub){sub=true;subScores();} render();});
+  }
+}
+function asAverages(){
+  if(S.as.scoresReadable){const m={};Object.values(S.as.scores).forEach(sc=>{const x=m[sc.eid]||(m[sc.eid]={s:0,n:0});x.s+=Number(sc.score)||0;x.n++;});
+    return Object.fromEntries(Object.entries(m).map(([k,v])=>[k,{a:v.s/v.n,n:v.n}]));}
+  return (S.as.results&&S.as.results.avg)||{};
+}
+let asPubT=null;
+function maybePublishResults(){
+  if(!S.as.scoresReadable||!S.db||T()?.status==='final') return;
+  const avg=asAverages(), cur=JSON.stringify((S.as.results&&S.as.results.avg)||{}), next=JSON.stringify(avg); if(cur===next) return;
+  clearTimeout(asPubT); const tid=S.tid; asPubT=setTimeout(()=>{S.db.doc('asResults/'+tid).set({avg,updatedAt:Date.now()}).catch(e=>console.warn('asResults',e));},1200);
+}
+function asStandings(avg){
+  const N=asCfg(T()).topN, P={};
+  S.as.entries.forEach(e=>{const a=avg[e.id], k=playerKey(e); const p=P[k]||(P[k]={key:k,name:e.name,park:e.park,orkId:e.orkId,subs:{},entries:0});
+    p.entries++; if(a&&a.n&&(!p.subs[e.sub]||a.a>p.subs[e.sub].a)) p.subs[e.sub]={a:a.a,eid:e.id};});
+  return Object.values(P).map(p=>{const best=Object.values(p.subs).map(x=>x.a).sort((a,b)=>b-a), top=best.slice(0,N);
+    return {...p,nsubs:Object.keys(p.subs).length,counted:top.length,total:top.reduce((s,x)=>s+x,0),best};})
+   .sort((a,b)=>b.total-a.total||(b.best[0]||0)-(a.best[0]||0)||String(a.name).localeCompare(String(b.name)));
+}
+const scoresFor=eid=>Object.values(S.as.scores).filter(s=>s.eid===eid);
+const judgeCanScore=(j,e)=>!!j&&(!j.cats||!j.cats.length||j.cats.includes(SUB[e.sub]?.cat));
+
+/* ---------- render ---------- */
+const combatRender=render;
+render=function(){
+  if(S.fbMode) return;
+  const t=T(), arts=isArts(t);
+  document.body.classList.toggle('arts',arts);
+  AS_TABS.forEach(k=>{if(!arts)$('#tab-'+k).hidden=true;});
+  placeOrkAuth(arts);
+  if(!arts){ if(AS_TABS.includes(S.tab)) S.tab='signups'; watchArts(); combatRender(); return; }
+  document.body.classList.toggle('marshal',!!S.isMarshal);
+  renderAuth(); renderHeader(); watchArts();
+  const c=asCfg(t), players=new Set(S.as.entries.map(playerKey)).size;
+  $('#tmeta').innerHTML=`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${S.as.entries.length}</b> entries from <b>${players}</b> player${players===1?'':'s'}</span><span>Arts &amp; Sciences · Dragonmaster</span><span>Scores ${c.min}–${c.max} in .25 steps · best ${c.topN} sub-categories count</span>`;
+  $('#tabs').hidden=false; $('#empty').hidden=true;
+  ['signups','pits','brackets','board','players','parks','awards'].forEach(x=>$('#tab-'+x).hidden=true);
+  const canJudge=S.isMarshal||!!S.as.myJudge;
+  if(!AS_TABS.includes(S.tab)) S.tab='entries';
+  if((S.tab==='judging'&&!canJudge)||(S.tab==='asawards'&&!S.isMarshal)) S.tab='entries';
+  document.querySelectorAll('.tabs .as-tab').forEach(b=>{b.classList.toggle('on',b.dataset.tab===S.tab); b.hidden=(b.dataset.tab==='judging'&&!canJudge)||(b.dataset.tab==='asawards'&&!S.isMarshal);});
+  AS_TABS.forEach(k=>$('#tab-'+k).hidden=S.tab!==k);
+  ({entries:renderEntries,judging:renderJudging,asboard:renderASBoard,asawards:renderASAwards})[S.tab]();
+  gate(); maybePublishResults();
+};
+function placeOrkAuth(arts){const el=$('#orkAuth'); if(!el) return; const home=arts?$('#asOrkSlot'):$('#tab-awards');
+  if(home&&el.parentElement!==home) home.prepend(el);}
+
+/* ---------- Entries tab ---------- */
+function subOptions(c,sel){return AS_CATS.map(cat=>{const subs=cat.subs.filter(([k])=>c.subs.includes(k)); if(!subs.length) return '';
+  return `<optgroup label="${esc(cat.n)}">${subs.map(([k,n,d])=>`<option value="${k}" ${sel===k?'selected':''}>${esc(n)} · ${esc(d)}</option>`).join('')}</optgroup>`;}).join('');}
+function renderEntries(){
+  const t=T(), c=asCfg(t), open=t.signupsOpen!==false&&t.status!=='final', root=$('#as-entries');
+  if(!$('#asEntryList')) root.innerHTML=`<div class="stack"><div id="asFormBox"></div><div class="panel" id="asEntryList"></div></div>`;
+  // Submission form: rebuilt only when the event or its open state changes, so typing is never lost.
+  const fk=[S.tid,open,c.subs.join(',')].join('|');
+  if(S.as.formKey!==fk){S.as.formKey=fk;
+    $('#asFormBox').innerHTML=open?`<div class="panel"><h2>Submit an entry</h2>
+      <form id="aeForm" class="form as-form">
+        <div class="row"><div class="field" style="flex-basis:240px"><label for="aeName">Your persona</label><input id="aeName" list="fighterNames" autocomplete="off" required></div>
+          <div class="field"><label for="aePark">Home park</label><input id="aePark" list="parks" autocomplete="off"></div></div>
+        <div class="row"><button class="btn sm ghost" type="button" data-act="orkfind" data-form="ae">Find me in the ORK</button>
+          <div class="field" style="flex-basis:220px"><label for="aeOrk">…or paste your ORK profile link</label><input id="aeOrk" autocomplete="off" inputmode="url"></div></div>
+        <div id="aeMatch" class="match-note" hidden></div>
+        <div class="field"><label for="aeSub">Category</label><select id="aeSub" required><option value="">Choose a sub-category…</option>${subOptions(c)}</select></div>
+        <div class="field"><label for="aeTitle">Entry title</label><input id="aeTitle" maxlength="120" required placeholder="Embroidered court tunic"></div>
+        <div class="field"><label for="aeWriteup">Documentation writeup</label><textarea id="aeWriteup" rows="8" maxlength="20000" required placeholder="What you made, how you made it, materials, sources and what you learned."></textarea></div>
+        <div class="field"><label for="aeLinks">Links to photos or documents (optional, one per line, up to 5)</label><textarea id="aeLinks" rows="3" placeholder="https://drive.google.com/…"></textarea></div>
+        <div class="row"><button class="btn" type="submit">Submit entry</button></div>
+        <p class="foot" style="margin:0">After you submit, you get a private link to your judges’ scores and feedback. They appear once the A&amp;S Crat finalizes the event.</p>
+      </form><div id="aeDone" hidden></div></div>`
+      :`<div class="panel"><h2>Entries are closed</h2><p class="muted" style="margin:0">${t.status==='final'?'This event is finalized. See the Scores tab for results.':'The A&S Crat has closed entries for this event.'}</p></div>`;}
+  const byCat=AS_CATS.map(cat=>({cat,list:S.as.entries.filter(e=>SUB[e.sub]?.cat===cat.k)})).filter(x=>x.list.length);
+  const list=byCat.length?byCat.map(({cat,list})=>`<h3 style="margin:14px 0 4px">${esc(cat.n)} <span class="muted" style="font:500 .9rem var(--body)">· ${list.length}</span></h3>${list.map(e=>{const k='asdel:'+e.id;
+      return `<div class="entry"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span></div>
+      <div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}${e.orkId?' · '+orkLink(e.orkId):''}</div>
+      ${S.isMarshal?`<div class="row m-only"><select data-assub="${esc(e.id)}" aria-label="Category for ${esc(e.title)}" style="max-width:300px">${subOptions(c,e.sub)}</select>
+        <button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="asdel" data-e="${esc(e.id)}">${S.confirm===k?'Tap again to withdraw':'Withdraw'}</button></div>`:''}</div>`;}).join('')}`).join('')
+    :'<p class="none">No entries yet.</p>';
+  setHtml($('#asEntryList'),`<h2>Entries · <span class="num">${S.as.entries.length}</span></h2>${list}`,'entries');
+}
+document.addEventListener('submit',async e=>{if(e.target.id!=='aeForm')return; e.preventDefault(); const t=T(); if(!t||!S.db) return;
+  const name=$('#aeName').value.trim(), park=$('#aePark').value.trim(), orkRaw=$('#aeOrk').value.trim(), orkId=parseOrk(orkRaw);
+  const sub=$('#aeSub').value, title=$('#aeTitle').value.trim(), writeup=$('#aeWriteup').value.trim();
+  const links=$('#aeLinks').value.split(/\s+/).map(s=>s.trim()).filter(Boolean);
+  if(!name||!sub||!title||!writeup){toast('Fill in your persona, category, title and writeup.');return;}
+  if(orkRaw&&!orkId){toast('That doesn’t look like an ORK profile link.');return;}
+  if(links.length>5||links.some(l=>!/^https?:\/\/\S+$/i.test(l)||l.length>500)){toast('Links must start with http:// or https://, up to 5 of them.');return;}
+  const ref=S.db.collection('entries').doc(), key=[...crypto.getRandomValues(new Uint8Array(18))].map(b=>b.toString(16).padStart(2,'0')).join('');
+  try{const b=S.db.batch();
+    b.set(ref,{tid:t.id,name:name.slice(0,80),park:park.slice(0,60),orkId:orkId||null,sub,title:title.slice(0,120),writeup:writeup.slice(0,20000),links,at:Date.now()});
+    b.set(S.db.doc('entrykeys/'+ref.id),{tid:t.id,key}); await b.commit();
+    const url=location.origin+location.pathname+'#feedback-'+key;
+    $('#aeForm').reset(); showMatchIn('ae',''); const d=$('#aeDone'); d.hidden=false;
+    d.innerHTML=`<div class="banner" style="display:grid;gap:8px"><b>Entry received: ${esc(title)}</b><span>Save this private link. It shows your judges’ scores and feedback after the event is finalized.</span>
+      <div class="fblink"><input id="fbUrl" readonly value="${esc(url)}" aria-label="Your private feedback link"><button class="btn sm" type="button" data-act="copyfb">Copy link</button></div></div>`;
+    toast('Entry submitted.');
+  }catch(err){console.error(err);toast(err.code==='permission-denied'?'Entries for this event are closed.':'Couldn’t submit your entry. Check your connection and try again.');}
+});
+
+/* ---------- Judging tab ---------- */
+function renderJudging(){
+  const t=T(), c=asCfg(t), root=$('#as-judging'), final=t.status==='final';
+  if(!$('#asJudgePanel')) root.innerHTML=`<div class="stack"><div id="asJudgeAdmin"></div><div id="asJudgePanel"></div></div>`;
+  // Crat: judge list, add form (built once per event), progress
+  if(S.isMarshal){
+    if(S.as.adminTid!==S.tid){S.as.adminTid=S.tid;
+      $('#asJudgeAdmin').innerHTML=`<div class="panel m-only"><h2>Judges</h2><div id="asJudgeList"></div>
+        <div class="stack" style="gap:10px;margin-top:12px"><div class="row"><div class="field"><label for="jEmail">Add a judge by their Google email</label><input id="jEmail" type="email" autocomplete="off" placeholder="judge@gmail.com"></div>
+          <button class="btn" data-act="addJudge">Add judge</button></div>
+          <div><div class="lbl" style="margin-bottom:4px">Categories they judge (none checked = all)</div><div class="checks" id="jCats">${AS_CATS.map(cat=>`<label><input type="checkbox" value="${cat.k}">${esc(cat.n)}</label>`).join('')}</div></div>
+          <p class="foot" style="margin:0">Judges sign in with Marshal sign-in using that Google account. They see only this event’s Judging tab and never each other’s scores.</p></div>
+        <div id="asProgress" style="margin-top:14px"></div></div>`;}
+    const jl=S.as.judges.slice().sort((a,b)=>a.email.localeCompare(b.email));
+    setHtml($('#asJudgeList'),jl.length?`<ul class="mlist">${jl.map(j=>{const k='rmJ:'+j.id,n=Object.values(S.as.scores).filter(s=>s.judge===j.email).length;
+      return `<li><span>${esc(j.email)} <small class="muted">· ${j.cats&&j.cats.length?j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', '):'All categories'} · ${n} scored</small></span>
+        <button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="rmJudge" data-j="${esc(j.id)}">${S.confirm===k?'Tap again to remove':'Remove'}</button></li>`;}).join('')}</ul>`:'<p class="none">No judges yet.</p>','jlist');
+    const avg=asAverages();
+    setHtml($('#asProgress'),S.as.entries.length?`<h3 style="margin-bottom:6px">Scoring progress</h3><div class="scroll"><table><thead><tr><th>Entry</th><th>Category</th><th class="n">Judges</th><th class="n">Average</th></tr></thead><tbody>
+      ${S.as.entries.map(e=>{const elig=S.as.judges.filter(j=>judgeCanScore(j,e)).length, a=avg[e.id];
+        return `<tr><td><b>${esc(e.title)}</b><small class="muted" style="display:block">${esc(e.name)}</small></td><td>${esc(SUB[e.sub]?.n||e.sub)}</td><td class="n">${a?a.n:0} of ${elig}</td><td class="n">${a?f2(a.a):'—'}</td></tr>`;}).join('')}</tbody></table></div>`:'','progress');
+  } else {$('#asJudgeAdmin').innerHTML=''; S.as.adminTid=null; delete S.as.last.jlist; delete S.as.last.progress;}
+  // Scoring panel for anyone on the judge list
+  const j=S.as.myJudge;
+  if(!j){setHtml($('#asJudgePanel'),S.isMarshal?'<div class="panel"><p class="none" style="margin:0">Add yourself as a judge to score entries here.</p></div>':'','jpanel');return;}
+  const mine=S.as.entries.filter(e=>judgeCanScore(j,e)), me=myEmail();
+  const done=mine.filter(e=>S.as.scores[e.id+'__'+me]).length;
+  const cards=mine.map(e=>{const saved=S.as.scores[e.id+'__'+me], dr=S.as.draft[e.id]||{};
+    const sv=dr.score!=null?dr.score:(saved?saved.score:''), fb=dr.fb!=null?dr.fb:(saved?saved.feedback||'':'');
+    return `<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span><div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}</div></div>
+      <span class="scorepill ${saved?'done':''}">${saved?f2(saved.score):'Not scored'}</span></div>
+      <details ${saved?'':'open'}><summary class="muted" style="cursor:pointer">Writeup${e.links&&e.links.length?` and ${e.links.length} link${e.links.length===1?'':'s'}`:''}</summary>
+        <div class="wu" style="margin-top:6px">${esc(e.writeup)}</div>
+        ${(e.links||[]).map(l=>`<div><a class="orkl" href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length>70?l.slice(0,67)+'…':l)}</a></div>`).join('')}</details>
+      <div class="jrow"><div class="field" style="flex:0 0 auto"><label for="js-${esc(e.id)}">Score (${c.min}–${c.max})</label><input id="js-${esc(e.id)}" data-js="${esc(e.id)}" type="number" min="${c.min}" max="${c.max}" step="0.25" value="${esc(sv)}" ${final?'disabled':''}></div>
+        <div class="field" style="flex:1 1 280px"><label for="jf-${esc(e.id)}">Feedback for the entrant</label><textarea id="jf-${esc(e.id)}" data-jf="${esc(e.id)}" rows="3" maxlength="5000" ${final?'disabled':''}>${esc(fb)}</textarea></div>
+        <button class="btn" data-act="jsave" data-e="${esc(e.id)}" ${final?'disabled':''}>${saved?'Update':'Save score'}</button></div></div>`;}).join('');
+  setHtml($('#asJudgePanel'),`<div class="panel"><h2>Your judging <span class="sub">${done} of ${mine.length} scored</span></h2>
+    <p class="foot" style="margin:0 0 6px">${j.cats&&j.cats.length?'You judge: '+j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', ')+'.':'You judge every category.'} Scores run ${c.min}–${c.max} in .25 steps. ${final?'This event is finalized, so scores are locked.':'Each entrant sees your score and feedback, without your name, after the event is finalized.'}</p>
+    ${cards||'<p class="none">No entries in your categories yet.</p>'}</div>`,'jpanel');
+}
+document.addEventListener('input',e=>{const t=e.target;
+  if(t.dataset&&t.dataset.js){(S.as.draft[t.dataset.js]||(S.as.draft[t.dataset.js]={})).score=t.value;}
+  else if(t.dataset&&t.dataset.jf){(S.as.draft[t.dataset.jf]||(S.as.draft[t.dataset.jf]={})).fb=t.value;}});
+document.addEventListener('change',e=>{const t=e.target;
+  if(t.dataset&&t.dataset.js&&t.value!==''){const c=asCfg(T()); let v=snapQ(+t.value); v=Math.min(c.max,Math.max(c.min,v)); t.value=v; (S.as.draft[t.dataset.js]||(S.as.draft[t.dataset.js]={})).score=String(v);}
+  else if(t.dataset&&t.dataset.assub){w(()=>S.db.doc('entries/'+t.dataset.assub).update({sub:t.value}));}
+  else if(t.id==='asLive'){w(()=>S.db.doc('tournaments/'+S.tid).update({'as.live':t.checked}));}
+  else if(t.id==='asOpen'){w(()=>S.db.doc('tournaments/'+S.tid).update({signupsOpen:t.checked}));}
+  else if(['asMin','asMax','asTop','asThr'].includes(t.id)){asSaveSettings();}
+});
+async function asSaveSettings(){const t=T(), c=asCfg(t);
+  const min=+$('#asMin').value, max=+$('#asMax').value, topN=Math.max(1,parseInt($('#asTop').value)||c.topN), thr=+$('#asThr').value;
+  if(Object.keys(S.as.scores).length&&(min!==c.min||max!==c.max)){toast('The score range can’t change after judges start scoring.');S.as.last={};render();return;}
+  if(!(max>min)||snapQ(min)!==min||snapQ(max)!==max||!(thr>=min&&thr<=max)){toast('Check the range: .25 steps, highest above lowest, threshold inside it.');S.as.last={};render();return;}
+  await w(()=>S.db.doc('tournaments/'+S.tid).update({'as.min':min,'as.max':max,'as.topN':topN,'as.thr':thr}));}
+
+/* ---------- Scores tab (leaderboard + finalize + settings) ---------- */
+function renderASBoard(){
+  const t=T(), c=asCfg(t), final=t.status==='final', show=final||c.live||S.isMarshal, avg=show?asAverages():{};
+  const st=asStandings(avg), N=c.topN;
+  let rank=0,prev=null;
+  const rows=st.filter(p=>p.counted).map((p,i)=>{if(p.total!==prev){rank=i+1;prev=p.total;}
+    return `<tr class="${rank===1?'r1':''}"><td class="rank">${rank}</td><td class="fp"><b>${esc(p.name)}</b><small>${esc(p.park||'')}${p.orkId?' · '+orkLink(p.orkId):''}</small></td><td class="n">${p.entries}</td><td class="n">${p.counted} of ${N}</td><td class="n total">${f2(p.total)}</td></tr>`;}).join('');
+  const catCards=AS_CATS.map(cat=>{const subs=cat.subs.map(([k,n])=>({k,n,list:S.as.entries.filter(e=>e.sub===k&&avg[e.id]).sort((a,b)=>avg[b.id].a-avg[a.id].a)})).filter(x=>x.list.length);
+    if(!subs.length) return '';
+    return `<div class="panel"><h3 style="margin-bottom:8px">${esc(cat.n)}</h3>${subs.map(s=>`<div style="margin-bottom:10px"><div class="lbl">${esc(s.n)}</div>${s.list.map((e,i)=>`<div class="pl" style="margin:4px 0">${i<3?`<span class="medal m${i+1}">${i+1}</span>`:`<span class="medal" style="background:var(--line);color:var(--ink)">${i+1}</span>`}<span class="nm"><b>${esc(e.title)}</b> <small class="muted">${esc(e.name)}</small></span><span class="pts">${f2(avg[e.id].a)}</span></div>`).join('')}</div>`).join('')}</div>`;}).join('');
+  const scored=S.as.entries.filter(e=>asAverages()[e.id]).length, k='asfin:'+S.tid, rk='asreopen:'+S.tid;
+  const finBar=!S.isMarshal?'':final?`<div class="banner m-only"><span><b>Final results.</b> Entrants can now open their private feedback links.</span><button class="btn sm ghost ${S.confirm===rk?'armed':''}" data-act="asReopen">${S.confirm===rk?'Tap again to reopen':'Reopen event'}</button></div>`
+    :`<div class="panel m-only"><div class="row" style="justify-content:space-between;align-items:center"><div><h2 style="margin:0 0 4px">Finalize event</h2><p class="foot" style="margin:0">${scored} of ${S.as.entries.length} entries have at least one score. Finalizing locks scoring, closes entries, and publishes each entrant’s scores and feedback to their private link.</p></div>
+      <button class="btn ${S.confirm===k?'armed':''}" data-act="asFinalize" ${S.as.entries.length&&scored===S.as.entries.length?'':'disabled'}>${S.confirm===k?'Tap again to finalize':'Finalize event'}</button></div></div>`;
+  const settings=!S.isMarshal?'':`<div class="panel m-only"><h2>Event settings</h2><div class="row">
+      <div class="field" style="flex:0 1 120px"><label for="asMin">Lowest</label><input id="asMin" type="number" step="0.25" value="${c.min}"></div>
+      <div class="field" style="flex:0 1 120px"><label for="asMax">Highest</label><input id="asMax" type="number" step="0.25" value="${c.max}"></div>
+      <div class="field" style="flex:0 1 170px"><label for="asTop">Categories counted</label><input id="asTop" type="number" min="1" max="36" value="${c.topN}"></div>
+      <div class="field" style="flex:0 1 200px"><label for="asThr">Award threshold</label><input id="asThr" type="number" step="0.25" value="${c.thr}"></div></div>
+    <div class="checks" style="margin:12px 0"><label><input type="checkbox" id="asOpen" ${t.signupsOpen!==false?'checked':''}> Accept entries</label><label><input type="checkbox" id="asLive" ${c.live?'checked':''}> Show scores to everyone before finalizing</label></div>
+    <button class="btn danger ${S.confirm==='asdelT:'+S.tid?'armed':''}" data-act="asDelT">${S.confirm==='asdelT:'+S.tid?'Tap again to delete everything':'Delete event'}</button></div>`;
+  const board=show?`<div class="panel"><h2>Dragonmaster standings</h2>${rows?`<div class="scroll"><table><thead><tr><th>#</th><th>Player</th><th class="n">Entries</th><th class="n">Counted</th><th class="n">Score</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="none">No scores yet.</p>'}
+      <p class="foot">Score = the sum of each player’s best judged average in each sub-category, top ${N} sub-categories. Averages are the mean of all judges’ scores.${!final&&S.isMarshal&&!c.live?' Only marshals see this until you finalize.':''}</p></div>`
+    :`<div class="panel"><h2>Scores are revealed at court</h2><p class="muted" style="margin:0">The standings appear here when the A&amp;S Crat finalizes the event.</p></div>`;
+  setHtml($('#as-asboard'),`<div class="stack">${finBar}${board}${show?`<div class="bgrid">${catCards}</div>`:''}${settings}</div>`,'board');
+}
+
+/* ---------- Awards tab ---------- */
+function asRecs(){const t=T(), c=asCfg(t), avg=asAverages(), best={};
+  S.as.entries.forEach(e=>{const a=avg[e.id], sub=SUB[e.sub]; if(!a||!a.n||!sub||a.a<c.thr) return; const k=playerKey(e)+'__'+sub.order;
+    if(!best[k]||a.a>best[k].a) best[k]={k,e,a:a.a,n:a.n,order:sub.order};});
+  return Object.values(best).map(r=>{const lad=r.e.orkId&&S.awards.players[r.e.orkId]&&S.awards.players[r.e.orkId].l; const cur=lad?Number(lad[r.order]||0):null;
+    return {...r,cur,next:cur==null?null:Math.min(10,cur+1),state:cur==null?'unknown':cur>=10?'met':'recommend'};})
+   .sort((a,b)=>({recommend:0,unknown:1,met:2}[a.state]-{recommend:0,unknown:1,met:2}[b.state])||b.a-a.a);}
+function asRecText(r){const t=T(), c=asCfg(t), lvl=r.next||1;
+  return `Recommended for the Order of the ${AS_ORDER[r.order]}, ${ordinalN(lvl)} order. Entry "${r.e.title}" (${SUB[r.e.sub]?.n||r.e.sub}) at ${t.name} (${longDateT(t.date)}${t.park?', '+t.park:''}) received a judged average of ${f2(r.a)} out of ${c.max} from ${r.n} judge${r.n===1?'':'s'}. Submitted from Field Marshal.`;}
+async function refreshLadders(manual){
+  const ids=[...new Set(S.as.entries.map(e=>e.orkId).filter(Boolean))].filter(id=>manual||!(S.awards.players[id]&&S.awards.players[id].l));
+  if(!ids.length){if(manual)toast('No entrants with ORK IDs to check.');return;}
+  if(manual) toast(`Checking ${ids.length} ORK profile${ids.length===1?'':'s'}…`);
+  const upd={}; let failed=0; for(const id of ids){try{upd[id]=await orkWarrior(id);}catch(e){failed++;}}
+  if(Object.keys(upd).length){await w(()=>S.db.doc('ork/awards').set({updatedAt:stamp(),players:{...S.awards.players,...upd}},{merge:true}));}
+  if(failed) toast(`Couldn’t reach the ORK for ${failed} player${failed===1?'':'s'}.`); else if(manual) toast('Award levels updated.');
+}
+function renderASAwards(){
+  const t=T(), c=asCfg(t), tid=S.tid;
+  if(!$('#asOrkSlot')){$('#as-asawards').innerHTML=`<div id="asOrkSlot"></div><div id="asAwardList"></div>`; placeOrkAuth(true);}
+  if(S.isMarshal&&!S.as.autoLadder[tid]&&S.as.entries.length){S.as.autoLadder[tid]=true;setTimeout(()=>refreshLadders(false),0);}
+  renderOrkAuth();
+  const recs=asRecs();
+  const rows=recs.map(r=>{const id=tid+'__'+r.k, st=S.recs[id]?.status, via=S.recs[id]?.via, sk='asorksend:'+r.k;
+    const status=st==='submitted'?`<span class="st done">${via==='ork'?'Sent to ORK':'Submitted'}</span>`:st==='dismissed'?'<span class="st met">Dismissed</span>'
+      :r.state==='recommend'?`<span class="st rec">Recommend ${AS_ORDER[r.order]} ${r.next}</span>`:r.state==='unknown'?'<span class="st unk">Check ORK level</span>':'<span class="st met">Already at 10</span>';
+    const send=S.orkAuth&&r.state==='recommend'&&r.e.orkId&&via!=='ork'?`<button class="btn sm ${S.confirm===sk?'armed':''}" data-act="asOrkSend" data-k="${esc(r.k)}">${S.confirm===sk?`Tap again to send ${AS_ORDER[r.order]} ${r.next}`:`Send ${AS_ORDER[r.order]} ${r.next} to ORK`}</button>`:'';
+    const copy=r.e.orkId?`<a class="btn sm ghost" href="${ORK_URL(r.e.orkId)}" target="_blank" rel="noopener" data-act="asOrkCopy" data-k="${esc(r.k)}">Recommend in ORK</a>`:'<span class="muted" style="font-size:.85rem">No ORK ID on the entry</span>';
+    return `<tr><td class="fp"><b>${esc(r.e.name)}</b><small>${r.e.orkId?orkLink(r.e.orkId):''}</small></td><td>${esc(r.e.title)}<small class="muted" style="display:block">${esc(SUB[r.e.sub]?.n||'')}</small></td><td class="n"><b>${f2(r.a)}</b></td>
+      <td>${AS_ORDER[r.order]}<small class="muted" style="display:block">now ${r.cur==null?'unknown':r.cur}</small></td>
+      <td>${status}<div class="acts" style="margin-top:6px">${send}${copy}
+        <button class="btn sm ghost ${st==='submitted'?'on':''}" data-act="asRec" data-k="${esc(r.k)}" data-v="submitted">Submitted</button><button class="btn sm ghost ${st==='dismissed'?'on':''}" data-act="asRec" data-k="${esc(r.k)}" data-v="dismissed">Dismiss</button></div>
+        <details class="rtext"><summary>Reason text for the ORK</summary><textarea readonly rows="4">${esc(asRecText(r))}</textarea></details></td></tr>`;}).join('');
+  setHtml($('#asAwardList'),`<div class="panel"><div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:10px"><h2 style="margin:0">Award recommendations</h2><button class="btn sm ghost" data-act="asLadders">Refresh ORK award levels</button></div>
+    ${rows?`<div class="scroll"><table><thead><tr><th>Player</th><th>Best entry</th><th class="n">Average</th><th>Order</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`:`<p class="none">No entry has reached the ${f2(c.thr)} threshold yet.</p>`}
+    <p class="foot">Entries averaging ${f2(c.thr)} or higher flag the next level of their order: Garb → Garber, Art / Literature / Cooking / Bardic → Dragon, Construction → Owl, Rose → Rose. One flag per player per order, from their best entry. Sending uses your ORK sign-in above, same as combat awards.</p></div>`,'awards');
+}
+
+/* ---------- actions ---------- */
+Object.assign(H2,{
+  copyfb:()=>{const i=$('#fbUrl'); if(!i) return; try{navigator.clipboard.writeText(i.value).then(()=>toast('Link copied.'),()=>{i.select();toast('Select the link and copy it.');});}catch(e){i.select();}},
+  jsave:async ds=>{const e=S.as.entries.find(x=>x.id===ds.e), j=S.as.myJudge; if(!e||!j) return; const c=asCfg(T()), me=myEmail();
+    const inp=$('#js-'+CSS.escape(ds.e)), fb=$('#jf-'+CSS.escape(ds.e)); const v=inp?snapQ(+inp.value):NaN;
+    if(!inp||inp.value===''||!(v>=c.min&&v<=c.max)){toast(`Enter a score from ${c.min} to ${c.max}.`);return;}
+    const data={tid:S.tid,eid:e.id,judge:me,score:v,feedback:(fb?fb.value:'').slice(0,5000),at:Date.now()};
+    try{await S.db.doc('scores/'+e.id+'__'+me).set(data); delete S.as.draft[e.id]; toast(`Saved ${f2(v)} for ${e.title}.`);}
+    catch(err){console.error(err);toast(err.code==='permission-denied'?'You’re not on this event’s judge list, or scoring is locked.':'Couldn’t save. Try again.');}},
+  addJudge:async()=>{const em=$('#jEmail').value.trim().toLowerCase(); if(!/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(em)){toast('Enter a full email address.');return;}
+    const cats=[...document.querySelectorAll('#jCats input:checked')].map(i=>i.value);
+    if(await w(()=>S.db.doc('judges/'+S.tid+'__'+em).set({tid:S.tid,email:em,cats,at:Date.now()}))){$('#jEmail').value='';document.querySelectorAll('#jCats input').forEach(i=>i.checked=false);toast(`${em} can now judge.`);}},
+  rmJudge:ds=>{if(!arm('rmJ:'+ds.j))return; w(()=>S.db.doc('judges/'+ds.j).delete());},
+  asdel:async ds=>{if(!arm('asdel:'+ds.e))return; const ids=Object.keys(S.as.scores).filter(k=>S.as.scores[k].eid===ds.e);
+    for(const id of ids) await w(()=>S.db.doc('scores/'+id).delete());
+    await w(()=>S.db.doc('entrykeys/'+ds.e).delete()); await w(()=>S.db.doc('entries/'+ds.e).delete()); toast('Entry withdrawn.');},
+  asFinalize:async()=>{const t=T(); if(!arm('asfin:'+t.id))return; const avg=asAverages();
+    try{const keys=await S.db.collection('entrykeys').where('tid','==',t.id).get(); const kmap={}; keys.docs.forEach(d=>kmap[d.id]=d.data().key);
+      const c=asCfg(t); let b=S.db.batch(), n=0; const flush=async()=>{await b.commit(); b=S.db.batch(); n=0;};
+      for(const e of S.as.entries){const key=kmap[e.id]; if(!key) continue; const sc=scoresFor(e.id).sort((a,b)=>(a.at||0)-(b.at||0));
+        b.set(S.db.doc('feedback/'+key),{tid:t.id,eid:e.id,event:t.name,date:t.date||'',park:t.park||'',name:e.name,title:e.title,sub:e.sub,min:c.min,max:c.max,
+          avg:avg[e.id]?avg[e.id].a:null,judges:sc.map((s,i)=>({label:'Judge '+(i+1),score:s.score,feedback:s.feedback||''})),publishedAt:Date.now()});
+        if(++n>=400) await flush();}
+      b.set(S.db.doc('asResults/'+t.id),{avg,updatedAt:Date.now(),final:true}); await b.commit();
+      await w(()=>S.db.doc('tournaments/'+t.id).update({status:'final',finalizedAt:Date.now(),signupsOpen:false}));
+      toast(`${t.name} is final. Feedback links are live.`);
+    }catch(err){console.error(err);toast('Couldn’t finalize. Nothing was published; try again.');}},
+  asReopen:async()=>{const t=T(); if(!arm('asreopen:'+t.id))return; if(await w(()=>S.db.doc('tournaments/'+t.id).update({status:'open'}))) toast('Event reopened. Scoring is unlocked; published feedback stays until you finalize again.');},
+  asDelT:async()=>{const t=T(); if(!arm('asdelT:'+t.id))return; const tid=t.id; toast('Deleting…');
+    try{const del=async q=>{const s=await q.get(); for(const d of s.docs) await d.ref.delete();};
+      const keys=await S.db.collection('entrykeys').where('tid','==',tid).get();
+      for(const d of keys.docs){await S.db.doc('feedback/'+d.data().key).delete().catch(()=>{}); await d.ref.delete();}
+      await del(S.db.collection('scores').where('tid','==',tid)); await del(S.db.collection('judges').where('tid','==',tid));
+      await del(S.db.collection('entries').where('tid','==',tid));
+      for(const k of Object.keys(S.recs).filter(k=>S.recs[k].tid===tid)) await S.db.doc('recs/'+k).delete();
+      await S.db.doc('asResults/'+tid).delete().catch(()=>{}); await S.db.doc('tournaments/'+tid).delete(); S.tid=null; toast('Event deleted.');
+    }catch(err){console.error(err);toast('The delete stopped partway. Try again.');}},
+  asLadders:()=>refreshLadders(true),
+  asRec:ds=>{const id=S.tid+'__'+ds.k, cur=S.recs[id]?.status; const r=asRecs().find(x=>x.k===ds.k);
+    if(cur===ds.v){delete S.recs[id];render();w(()=>S.db.doc('recs/'+id).delete());return;}
+    const data={tid:S.tid,key:ds.k,status:ds.v,award:r?r.order:null,lvl:r?r.next:null,at:Date.now()}; S.recs[id]=data; render(); w(()=>S.db.doc('recs/'+id).set(data));},
+  asOrkCopy:ds=>{const r=asRecs().find(x=>x.k===ds.k); if(!r) return; try{navigator.clipboard.writeText(asRecText(r)).then(()=>toast('Reason copied. On their ORK page, choose Recommend and paste it in.'),()=>toast('Couldn’t copy. Open "Reason text for the ORK" and copy it.'));}catch(e){}},
+  asOrkSend:async ds=>{const r=asRecs().find(x=>x.k===ds.k); if(!r||r.state!=='recommend'||!S.orkAuth) return; if(!arm('asorksend:'+ds.k)) return;
+    try{const d=await orkPost({call:'Player/AddAwardRecommendation','request[Token]':S.orkAuth.token,'request[MundaneId]':r.e.orkId,'request[AwardId]':String(r.order),'request[Rank]':String(r.next),'request[Reason]':asRecText(r)});
+      const s=orkStat(d), msg=plain(s.msg), id=S.tid+'__'+r.k;
+      const mark=async()=>{const data={tid:S.tid,key:r.k,status:'submitted',via:'ork',award:r.order,lvl:r.next,orkUser:S.orkAuth?.user||'',at:Date.now()};S.recs[id]=data;await w(()=>S.db.doc('recs/'+id).set(data));};
+      if(s.code===0){await mark();toast(`Sent. ${r.e.name} is recommended for ${AS_ORDER[r.order]} ${r.next} in the ORK.`);}
+      else if(s.code===2||(s.code===5&&!msg)){S.orkAuth=null;toast('Your ORK sign-in expired. Sign in again, then resend.');}
+      else if(/already recommended/i.test(msg)){await mark();toast('You already recommended that level in the ORK. Marked as sent.');}
+      else toast(msg||'The ORK didn’t accept that recommendation.');
+    }catch(e){toast('Couldn’t reach the ORK. Nothing was sent.');}
+    render();},
+});
+['asOrkSend','asFinalize','asReopen','asDelT','asdel','addJudge','rmJudge','asRec','asLadders'].forEach(a=>WRITE_ACTS.add(a));
+
+/* ---------- private feedback link: #feedback-<key> ---------- */
+async function showFeedback(){
+  const m=location.hash.match(/^#feedback-([a-f0-9]{24,64})$/); if(!m||!S.db) return false;
+  const box=document.createElement('div'); box.className='feedback-view'; box.id='fbView';
+  document.querySelector('.wrap').append(box); ['#tabs','#tmeta','#empty'].forEach(s=>{const el=$(s); if(el) el.hidden=true;});
+  document.querySelectorAll('.wrap > section').forEach(s=>s.hidden=true);
+  box.innerHTML='<div class="panel"><p class="muted" style="margin:0">Loading your feedback…</p></div>';
+  try{const d=await S.db.doc('feedback/'+m[1]).get();
+    if(!d.exists){box.innerHTML='<div class="panel"><h2>Feedback isn’t published yet</h2><p class="muted" style="margin:0">Your judges’ scores and feedback appear here once the A&amp;S Crat finalizes the event. Keep this link and check back.</p></div>';return true;}
+    const f=d.data();
+    box.innerHTML=`<div class="panel"><div class="eyebrow">${esc(f.event)} · ${esc(longDateT(f.date))}${f.park?' · '+esc(f.park):''}</div>
+      <h2 style="margin:6px 0">${esc(f.title)}</h2><p class="muted" style="margin:0 0 12px">${esc(f.name)} · ${esc(SUB[f.sub]?.n||f.sub)}</p>
+      <div class="tiles">${tile('Average score',f.avg!=null?f2(f.avg):'—',`out of ${f.max}`)}${tile('Judges',(f.judges||[]).length)}</div>
+      ${(f.judges||[]).map(j=>`<div class="entry"><div class="row" style="justify-content:space-between"><b>${esc(j.label)}</b><span class="scorepill done">${f2(j.score)}</span></div>${j.feedback?`<div class="wu">${esc(j.feedback)}</div>`:'<span class="muted">No written feedback.</span>'}</div>`).join('')}
+      <p class="foot">Judges are shown by number, not name. Thank you for entering.</p></div>`;
+  }catch(err){box.innerHTML='<div class="panel"><p class="muted" style="margin:0">Couldn’t load your feedback. Check your connection and reload.</p></div>';}
+  return true;
+}
+
 /* ---------- live data ---------- */
 (async()=>{
   const cfg=window.FIELD_MARSHAL_FIREBASE;
   if(!window.firebase||!cfg||!cfg.apiKey||/PASTE/i.test(cfg.apiKey)){S.offline='config';render();return;}
   firebase.initializeApp(cfg); const db=firebase.firestore(); S.db=db; S.auth=firebase.auth();
+  if(/^#feedback-/.test(location.hash)){S.fbMode=true; const tp=document.querySelector('.tpick'); if(tp) tp.hidden=true; showFeedback(); return;}
   render();
   S.auth.onAuthStateChanged(u=>{S.user=u; if(S.unMarshal){S.unMarshal();S.unMarshal=null;} S.isMarshal=false; subPrivate();
     if(u&&u.email){S.unMarshal=db.doc('marshals/'+u.email.toLowerCase()).onSnapshot(s=>{S.isMarshal=s.exists;subPrivate();render();},e=>{console.error(e);S.isMarshal=false;subPrivate();render();});}
