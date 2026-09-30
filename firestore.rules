@@ -1,7 +1,8 @@
 rules_version = '2';
 // Field Marshal security rules.
 // Anyone can view tournaments, pits, brackets and standings.
-// Only people listed in the "marshals" collection can change them.
+// Only people listed in the "marshals" collection can change them, and only for the kingdoms
+// listed on their marshal entry (kingdoms: ['westmarch'], ['neverwinter'], or ['*'] for all).
 // Players without an account can send a signup request while a tournament's signups are open.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -14,6 +15,15 @@ service cloud.firestore {
     function isMarshal() {
       return signedIn() && exists(/databases/$(database)/documents/marshals/$(myEmail()));
     }
+    function myKingdoms() {
+      return get(/databases/$(database)/documents/marshals/$(myEmail())).data.get('kingdoms', ['westmarch']);
+    }
+    function isMarshalFor(k) { return isMarshal() && myKingdoms().hasAny(['*', k]); }
+    function isSuper() { return isMarshal() && myKingdoms().hasAny(['*']); }
+    function kingdomOf(tid) {
+      return get(/databases/$(database)/documents/tournaments/$(tid)).data.get('kingdom', 'westmarch');
+    }
+    function isMarshalOfT(tid) { return isMarshal() && myKingdoms().hasAny(['*', kingdomOf(tid)]); }
     function isJudge(tid) {
       return signedIn() && exists(/databases/$(database)/documents/judges/$(tid + '__' + myEmail()));
     }
@@ -82,29 +92,41 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('signupsOpen', true) == true;
     }
 
-    match /tournaments/{id} { allow read: if true; allow write: if isMarshal(); }
+    match /tournaments/{id} {
+      allow read: if true;
+      allow create: if isMarshalFor(request.resource.data.get('kingdom', 'westmarch'));
+      allow update: if isMarshalFor(resource.data.get('kingdom', 'westmarch'))
+        && isMarshalFor(request.resource.data.get('kingdom', 'westmarch'));
+      allow delete: if isMarshalFor(resource.data.get('kingdom', 'westmarch'));
+    }
+    // Shared across kingdoms: any marshal.
     match /fighters/{id}    { allow read: if true; allow write: if isMarshal(); }
-    match /signups/{id}     { allow read: if true; allow write: if isMarshal(); }
-    match /divisions/{id}   { allow read: if true; allow write: if isMarshal(); }
-    match /bouts/{id}       { allow read: if true; allow write: if isMarshal(); }
-    match /tallies/{id}     { allow read: if true; allow write: if isMarshal(); }
     match /ork/{id}         { allow read: if true; allow write: if isMarshal(); }
-    match /results/{id}     { allow read: if true; allow write: if isMarshal(); }
+    // Tournament data: marshals of that tournament's kingdom.
+    match /signups/{id}   { allow read: if true; allow create, update: if isMarshalOfT(request.resource.data.tid); allow delete: if isMarshalOfT(resource.data.tid); }
+    match /divisions/{id} { allow read: if true; allow create, update: if isMarshalOfT(request.resource.data.tid); allow delete: if isMarshalOfT(resource.data.tid); }
+    match /bouts/{id}     { allow read: if true; allow create, update: if isMarshalOfT(request.resource.data.tid); allow delete: if isMarshalOfT(resource.data.tid); }
+    match /tallies/{id}   { allow read: if true; allow create, update: if isMarshalOfT(request.resource.data.tid); allow delete: if isMarshalOfT(resource.data.tid); }
+    match /results/{tid}  { allow read: if true; allow write: if isMarshalOfT(tid); }
 
     // Award recommendations stay private to marshals.
-    match /recs/{id} { allow read, write: if isMarshal(); }
+    match /recs/{id} { allow read: if isMarshal(); allow create, update: if isMarshalOfT(request.resource.data.tid); allow delete: if isMarshalOfT(resource.data.tid); }
 
     // Each signed-in person may check their own marshal entry; marshals manage the list.
     match /marshals/{mail} {
       allow get: if signedIn() && myEmail() == mail;
-      allow read, write: if isMarshal();
+      allow read: if isMarshal();
+      // A marshal can add or remove marshals only for kingdoms they cover themselves; '*' can do any.
+      allow create, update: if isSuper() || (isMarshal() && request.resource.data.get('kingdoms', ['westmarch']).hasOnly(myKingdoms()));
+      allow delete: if isSuper() || (isMarshal() && resource.data.get('kingdoms', ['westmarch']).hasOnly(myKingdoms()));
     }
 
     // Arts & Sciences (Dragonmaster) events.
     match /entries/{id} {
       allow read: if true;
-      allow create: if validEntry(request.resource.data) || isMarshal();
-      allow update, delete: if isMarshal();
+      allow create: if validEntry(request.resource.data) || isMarshalOfT(request.resource.data.tid);
+      allow update: if isMarshalOfT(request.resource.data.tid);
+      allow delete: if isMarshalOfT(resource.data.tid);
     }
     // Secret key for each entrant's private feedback link. Anyone can create one with their entry; only marshals read them.
     match /entrykeys/{id} {
@@ -112,29 +134,33 @@ service cloud.firestore {
         && request.resource.data.key is string
         && request.resource.data.key.size() >= 24 && request.resource.data.key.size() <= 64
         && existsAfter(/databases/$(database)/documents/entries/$(id));
-      allow read, update, delete: if isMarshal();
+      allow read: if isMarshal();
+      allow update, delete: if isMarshalOfT(resource.data.tid);
     }
     // Judges: doc id is {tid}__{email}. A signed-in person may check their own entry.
     match /judges/{id} {
       allow get: if signedIn() && id.split('__')[1] == myEmail();
-      allow read, write: if isMarshal();
+      allow read: if isMarshal();
+      allow create, update: if isMarshalOfT(request.resource.data.tid);
+      allow delete: if isMarshalOfT(resource.data.tid);
     }
     // Scores: judges write their own; judges of the event and marshals can read.
     match /scores/{id} {
       allow read: if isMarshal() || isJudge(resource.data.tid);
       allow create, update: if validScore(id, request.resource.data);
-      allow delete: if isMarshal();
+      allow delete: if isMarshalOfT(resource.data.tid);
     }
     // Public judged averages (no individual scores).
     match /asResults/{tid} {
       allow read: if true;
-      allow write: if isMarshal() || isJudge(tid);
+      allow write: if isMarshalOfT(tid) || isJudge(tid);
     }
     // Published at finalize. Readable only by someone holding the unguessable link.
     match /feedback/{key} {
       allow get: if true;
       allow list: if false;
-      allow write: if isMarshal();
+      allow create, update: if isMarshalOfT(request.resource.data.tid);
+      allow delete: if isMarshalOfT(resource.data.tid);
     }
 
     // Battle of the Bards.
@@ -145,12 +171,12 @@ service cloud.firestore {
         && id == request.resource.data.tid + '__' + request.auth.uid
         && validBard(request.resource.data)
         && bardsOpen(request.resource.data.tid);
-      allow update: if isMarshal() || (request.auth != null
+      allow update: if isMarshalOfT(resource.data.tid) || (request.auth != null
         && resource.data.uid == request.auth.uid
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.tid == resource.data.tid
         && validBard(request.resource.data));
-      allow delete: if isMarshal() || (request.auth != null && resource.data.uid == request.auth.uid);
+      allow delete: if isMarshalOfT(resource.data.tid) || (request.auth != null && resource.data.uid == request.auth.uid);
     }
     // Each bard's Google Drive link for a round, only while that round is open for entries.
     match /bsubs/{id} {
@@ -166,7 +192,7 @@ service cloud.firestore {
         && (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 200))
         && bbState(request.resource.data.tid).get('phase', '') == 'entries'
         && bbState(request.resource.data.tid).get('round', -1) == request.resource.data.round;
-      allow delete: if isMarshal();
+      allow delete: if isMarshalOfT(resource.data.tid);
     }
     // Judges' ballots: each judge writes their own, only while the round is open for voting.
     match /bvotes/{id} {
@@ -178,18 +204,19 @@ service cloud.firestore {
         && request.resource.data.dragon is list && request.resource.data.dragon.size() <= 2
         && bbState(request.resource.data.tid).get('phase', '') == 'voting'
         && bbState(request.resource.data.tid).get('round', -1) == request.resource.data.round;
-      allow delete: if isMarshal();
+      allow delete: if isMarshalOfT(resource.data.tid);
     }
     // Public bracket state. Organizers run it; the head judge can break ties.
     match /bbr/{tid} {
       allow read: if true;
-      allow write: if isMarshal() || isHeadJudge(tid);
+      allow write: if isMarshalOfT(tid) || isHeadJudge(tid);
     }
 
     // Player signup requests.
     match /requests/{id} {
       allow create: if validRequest(request.resource.data);
-      allow read, update, delete: if isMarshal();
+      allow read: if isMarshal();
+      allow update, delete: if isMarshalOfT(resource.data.tid);
     }
   }
 }

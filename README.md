@@ -130,6 +130,22 @@ For the Bardic College's Battle of the Bards, set **Type** to **Battle of the Ba
 
 **Updating from an earlier version:** paste the new `firestore.rules` into Firestore → Rules and **Publish**. Battle of the Bards needs the new rules for bards, performance links, ballots and the bracket.
 
+
+## Kingdoms
+
+Field Marshal serves more than one kingdom. It currently knows the **Kingdom of Westmarch** (with the Principality of Stone Rivers) and the **Kingdom of Neverwinter**, with each kingdom's active parks from the ORK.
+
+- **Kingdom picker:** the dropdown left of the event list filters events by kingdom (or "All kingdoms"). Each visitor's browser remembers their choice. The header shows the selected event's kingdom.
+- **New events:** choose the **Kingdom** first. The park suggestions and the default tournament level (Duchy, Barony or Shire, from the park's ORK rank) follow that kingdom. Events created before this update, and events created from FORK, count as Westmarch.
+- **Players, Parks and "All tournaments"** only include events in the kingdom you've picked.
+- **ORK rosters:** **Refresh park rosters from the ORK** loads the active players of every park in the selected event's kingdom, and keeps the other kingdoms' players. ORK searches list players from that kingdom first.
+
+**Marshals are per kingdom.** Each marshal entry lists the kingdoms that person can manage. They can see every kingdom's events, but only create or change events in their own. When you add a marshal in Field Marshal settings, tick their kingdom(s). A marshal can only add or remove marshals for kingdoms they cover; a marshal set to **All kingdoms** can manage every kingdom and add anyone.
+
+**One-time step for the site owner:** existing marshal entries have no kingdom list, so they count as Westmarch only. To make yourself a marshal for all kingdoms, open Firebase → Firestore Database → Data → `marshals` → your email. Add a field named `kingdoms` of type **array** with one string item, `*`, and save. Then publish the new `firestore.rules` (Firestore → Rules → Publish), which enforce the kingdom limits.
+
+**Adding another kingdom later** is a small code change: its ORK kingdom ID and active parks go in the `KINGDOMS` list at the top of the app.
+
 ## Links with FORK (event management)
 - Open a tournament directly: `https://srfieldmarshal.netlify.app/?t=<tournament id>`. Add `&tab=signups` (or pits, brackets, board, players, parks, awards; for A&S events entries, judging, asboard, asawards; for Battle of the Bards bbenter, bbbracket, bbjudge, bbawards) to open a tab. The address bar updates as you switch tournaments, so you can copy it to share or to link a tournament in FORK.
 - Tournaments created from FORK carry `fork: { eventId, name, url }`. The tournament header shows "Part of <event>" with a link back to the FORK event page.
