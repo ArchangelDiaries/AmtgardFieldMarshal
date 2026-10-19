@@ -479,7 +479,7 @@ async function w(fn){
     console.error(e);
     const c=e&&e.code;
     toast((c==='quota_exceeded'||c==='resource-exhausted')?'Storage is full. Delete an old tournament to make room.':
-          (c==='invalid_argument'||c==='permission-denied')?'Sign in as a marshal to change the lists.':
+          (c==='invalid_argument'||c==='permission-denied')?permMsg():
           'Couldn’t save that. Check your connection and try again.');
     return false;}
 }
@@ -1122,7 +1122,7 @@ const H={
     await w(()=>S.db.doc('results/'+tid).delete()); await w(()=>S.db.doc('tournaments/'+tid).delete()); S.tid=null; toast('Tournament deleted.');},
 };
 document.addEventListener('click',e=>{const el=e.target.closest('[data-act]'); if(!el||el.disabled) return;
-  const a=el.dataset.act; if(WRITE_ACTS.has(a)&&!S.isMarshal&&!(a==='orkpick'&&['rq','ae','bb'].includes(el.dataset.form))&&!(a==='newT'&&S.mdoc)){toast('Sign in as a marshal to change the lists.');return;}
+  const a=el.dataset.act; if(WRITE_ACTS.has(a)&&!S.isMarshal&&!(a==='orkpick'&&['rq','ae','bb'].includes(el.dataset.form))&&!(a==='newT'&&S.mdoc)){toast(S.mdoc&&!kBad()&&T()?'This event is in the '+KINGDOMS[tKingdom(T())].n+'. Your marshal entry covers '+kNames(myKs())+'.':permMsg());return;}
   if(lockedAct(a)) return;
   (H[a]||H2[a])?.(el.dataset,el,e);});
 document.addEventListener('change',e=>{const t=e.target;
@@ -1203,6 +1203,14 @@ Object.assign(S,{user:null,mdoc:null,requests:[],marshals:[],privSubs:null,autoW
    A missing list means Westmarch. S.isMarshal answers "can this person manage the selected tournament?" */
 const myKs=()=>S.mdoc?(Array.isArray(S.mdoc.kingdoms)&&S.mdoc.kingdoms.length?S.mdoc.kingdoms:['westmarch']):[];
 Object.defineProperty(S,'isMarshal',{configurable:true,get(){const ks=myKs(); if(!ks.length) return false; if(ks.includes('*')) return true; const t=T(); return !t||ks.includes(tKingdom(t));},set(v){}});
+/* A kingdoms field that isn't a list of known keys (a plain string, "all", quoted values) makes the
+   Firestore rules refuse every change, so say so plainly instead of a generic sign-in message. */
+const kBad=()=>{if(!S.mdoc||!('kingdoms' in S.mdoc))return '';const v=S.mdoc.kingdoms;
+  if(!Array.isArray(v))return 'The kingdoms field on your marshal entry is a '+(typeof v)+'. In Firestore, change its type to array and add one string value per kingdom (* for all).';
+  const odd=v.filter(k=>k!=='*'&&!KINGDOMS[k]); if(odd.length)return 'Your marshal entry lists '+odd.map(k=>JSON.stringify(k)).join(', ')+' as a kingdom. Use * (no quotes) for all kingdoms, or '+Object.keys(KINGDOMS).join(' / ')+'.';
+  if(!v.length)return 'The kingdoms list on your marshal entry is empty. Add * for all kingdoms.'; return '';};
+const permMsg=()=>!S.user?'Sign in as a marshal to change the lists.':!S.mdoc?'You’re signed in, but '+S.user.email+' isn’t on the marshal list.'
+  :kBad()||'The database turned this down. Your marshal entry covers '+kNames(myKs())+'. If that’s right, publish the latest firestore.rules in Firebase.';
 const kNames=ks=>ks.includes('*')?'All kingdoms':ks.map(k=>KINGDOMS[k]?KINGDOMS[k].n.replace('Kingdom of ',''):k).join(', ');
 function renderAuth(){
   document.body.classList.toggle('anymarshal',!!S.mdoc);const el=$('#auth'); if(!el) return; if(!S.auth){el.innerHTML='';return;}
@@ -1210,7 +1218,7 @@ function renderAuth(){
   const em=esc(S.user.email||'');
   const judge=!S.isMarshal&&((S.as&&S.as.myJudge)||(S.bb&&S.bb.myJudge));
   el.innerHTML=`<span>${S.isMarshal?'<b>Marshal</b> · ':S.mdoc?`<b>Marshal</b> (${esc(kNames(myKs()))}) · `:judge?'<b>Judge</b> · ':''}${em}</span><button class="btn sm ghost" data-act="signout">Sign out</button>`
-    +(S.mdoc||judge||(T()&&T().kind==='bards')?'':`<span style="flex-basis:100%">Not on the marshal or judge list. Ask a marshal to add ${em}.</span>`);}
+    +(kBad()?`<span style="flex-basis:100%;color:var(--danger,#b3261e)">${esc(kBad())}</span>`:'')+(S.mdoc||judge||(T()&&T().kind==='bards')?'':`<span style="flex-basis:100%">Not on the marshal or judge list. Ask a marshal to add ${em}.</span>`);}
 
 /* Hide or disable editing controls for non-marshals. Marks what it changed so signing in restores it,
    including the header's static "New tournament" button. */
@@ -1357,7 +1365,7 @@ async function importBackup(file){
   if(!ops.length){toast('Nothing to import in that file.');return;}
   toast(`Importing ${ops.length} records…`);
   try{let b=S.db.batch(),n=0;for(const [c,id,d] of ops){b.set(S.db.doc(c+'/'+id),d);if(++n%400===0){await b.commit();b=S.db.batch();}}await b.commit();toast(`Imported ${ops.length} records.`);}
-  catch(e){console.error(e);toast(e.code==='permission-denied'?'Sign in as a marshal to import.':'The import stopped partway. Try again.');}
+  catch(e){console.error(e);toast(e.code==='permission-denied'?permMsg():'The import stopped partway. Try again.');}
 }
 
 const H2={
