@@ -55,6 +55,13 @@ button{cursor:pointer}
 .top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-block:22px 16px;border-bottom:2px solid var(--ink)}
 .brand h1{font-size:clamp(1.7rem,4vw,2.4rem);letter-spacing:.01em}
 .brand .eyebrow{margin-bottom:4px}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.crest{flex:none;display:inline-flex}
+.crest:empty{display:none}
+.crest img{width:72px;height:72px;object-fit:contain;border-radius:6px}
+.crest.sm img{width:44px;height:44px}
+h2 .crest{vertical-align:middle;margin-right:10px}
+@media (max-width:560px){.crest img{width:52px;height:52px}}
 .brand .tag{margin:6px 0 0;color:var(--muted);font-style:italic;font-size:1rem}
 .tpick{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .tpick{max-width:100%;min-width:0}
@@ -309,11 +316,11 @@ body:not(.anymarshal) .mk-only{display:none!important}
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">
+    <div class="brand"><span id="kCrest" class="crest"></span><div>
       <div class="eyebrow" id="kEyebrow">Principality of Stone Rivers · Kingdom of Westmarch</div>
       <h1>Field Marshal</h1>
       <p class="tag">A Digital Combat Scribe for Tournament Management</p>
-    </div>
+    </div></div>
     <div class="tpick">
       <select id="kpick" aria-label="Kingdom" style="max-width:220px"></select>
       <select id="tpick" aria-label="Tournament"></select>
@@ -376,7 +383,7 @@ body:not(.anymarshal) .mk-only{display:none!important}
         <form id="rqForm" class="form">
           <div class="row">
             <div class="field" style="flex-basis:240px"><label for="rqName">Your persona</label><input id="rqName" autocomplete="off" required placeholder="Your Amtgard name"></div>
-            <div class="field"><label for="rqPark">Home park</label><input id="rqPark" list="parks" autocomplete="off"></div>
+            <div class="field"><label for="rqPark">Home park</label><input id="rqPark" list="parks" autocomplete="off" placeholder="Choose your park to find yourself"></div>
           </div>
           <div class="row"><button class="btn sm ghost" type="button" data-act="orkfind" data-form="rq">Find me in the ORK</button>
             <div class="field" style="flex-basis:220px"><label for="rqOrk">…or paste your ORK profile link</label><input id="rqOrk" autocomplete="off" inputmode="url"></div></div>
@@ -450,6 +457,17 @@ const KINGDOMS={
   neverwinter:{k:'neverwinter',id:5,n:'Kingdom of Neverwinter',eyebrow:'Kingdom of Neverwinter',home:'Falling Fire',
     parks:[[630,'Emerald Cove','duchy'],[75,'Falling Fire','duchy'],[882,'Murk Bottom','duchy'],[656,'Shifting Tides','duchy'],[139,'Darkwater (FL)','barony'],[930,'Dragons Crossing','barony'],
       [708,'Shadowcrest','barony'],[499,'Crest Haven','shire'],[1084,'Mystic Oaks','shire'],[353,'Twilight Eclipse','shire'],[1099,"Valkyrie's Reach",'shire']]}};
+/* Heraldry comes from the ORK by kingdom or park ID. A file the app ships with (logos/<kingdom>.png)
+   wins over the ORK copy. Each image falls through its list on error and disappears if none load,
+   so a missing crest never leaves a broken-image icon. */
+const ORK_HERALDRY='https://ork.amtgard.com/assets/heraldry/';
+const pad=(n,w)=>String(n).padStart(w,'0');
+const crestSrcs=(kind,id,k)=>kind==='kingdom'
+  ?[`logos/${k}.png`,`logos/${k}.jpg`,`${ORK_HERALDRY}kingdom/${pad(id,4)}.jpg`,`${ORK_HERALDRY}kingdom/${pad(id,5)}.jpg`,`${ORK_HERALDRY}kingdom/${pad(id,4)}.png`]
+  :id?[`${ORK_HERALDRY}park/${pad(id,5)}.jpg`,`${ORK_HERALDRY}park/${pad(id,4)}.jpg`,`${ORK_HERALDRY}park/${pad(id,5)}.png`,`logos/park-${id}.png`]:[];
+window.crestNext=el=>{const a=(el.dataset.alt||'').split('|').filter(Boolean); if(a.length){el.dataset.alt=a.slice(1).join('|');el.src=a[0];} else {const w=el.parentNode; el.remove(); if(w&&w.classList.contains('crest'))w.innerHTML='';}};
+const crestImg=(srcs,alt)=>srcs.length?`<img src="${esc(srcs[0])}" data-alt="${esc(srcs.slice(1).join('|'))}" alt="${esc(alt)}" onerror="crestNext(this)" loading="lazy">`:'';
+const parkId=name=>{for(const K of Object.values(KINGDOMS)){const p=K.parks.find(x=>x[1]===name); if(p) return p[0];} return 0;};
 const tKingdom=t=>(t&&KINGDOMS[t.kingdom])?t.kingdom:'westmarch';
 const parkLevel=(park,k)=>{const p=(KINGDOMS[k]||KINGDOMS.westmarch).parks.find(x=>x[1]===park);return p?p[2]:null;};
 const inKf=t=>!!t&&(S.kf==='all'||tKingdom(t)===S.kf);
@@ -813,7 +831,7 @@ function renderParks(){
   const el=$('#parkView');
   el.innerHTML=`<div class="dchips">${parks.map(p=>`<button class="dchip ${p===P?'on':''}" style="--tc:var(--or)" data-act="park" data-p="${esc(p)}">${esc(p)}<small>${counts[p]||0}</small></button>`).join('')}</div>
     <div class="boardgrid"><div class="stack">
-      <div class="panel"><h2>${esc(P)} <span class="sub">tournaments</span></h2>
+      <div class="panel"><h2><span class="crest sm">${crestImg(crestSrcs('park',parkId(P)),P+' heraldry')}</span>${esc(P)} <span class="sub">tournaments</span></h2>
         <div class="tiles">${tile('Tournaments hosted',list.length)}${tile('Fighter entries',total)}${tile('Average turnout',list.length?Math.round(total/list.length*10)/10:'—')}${tile('Biggest turnout',biggest?turn(biggest):'—',biggest?esc(biggest.name):'')}</div>
         <h3 style="margin:6px 0 8px">Fighters per tournament</h3>${barChart(items,`${P}: fighters per tournament`,(contentWidth(el)>900?contentWidth(el)-340:contentWidth(el))-40)}</div>
       <div class="panel"><h3 style="margin-bottom:8px">Tournament history</h3>${rows?`<div class="scroll"><table><thead><tr><th>Date</th><th>Tournament</th><th class="n">Fighters</th><th>By division</th><th>Champions</th></tr></thead><tbody>${rows}</tbody></table></div>`:`<p class="none">${esc(P)} hasn’t hosted a tournament in Field Marshal yet.</p>`}</div></div>
@@ -847,6 +865,7 @@ function render(){
   if(aid){const el=document.getElementById(aid); if(el&&el!==ae){el.value=aval;el.focus();}}
   if(S.tab==='signups') renderStandalone();
   if(S.tab==='awards'){autoWarrior();renderOrkAuth();}
+  autoRoster();
   gate();
   tick();
 }
@@ -859,6 +878,7 @@ function renderHeader(){
   if(kp.dataset.h!==kh){kp.innerHTML=kh;kp.dataset.h=kh;} kp.value=S.kf;
   const shown=S.tournaments.filter(inKf), ctxK=T()?tKingdom(T()):(S.kf!=='all'?S.kf:'westmarch');
   $('#kEyebrow').textContent=KINGDOMS[ctxK].eyebrow;
+  const kc=$('#kCrest'); if(kc.dataset.k!==ctxK){kc.dataset.k=ctxK; kc.innerHTML=crestImg(crestSrcs('kingdom',KINGDOMS[ctxK].id,ctxK),KINGDOMS[ctxK].n+' heraldry');}
   if($('#newT').hidden) fillParks(ctxK);
   sel.innerHTML=shown.length?shown.map(t=>`<option value="${esc(t.id)}" ${t.id===S.tid?'selected':''}>${dot(t)} ${esc(t.name)}${t.date?' · '+esc(t.date):''}</option>`).join(''):`<option>No tournaments${S.kf!=='all'?' in '+esc(KINGDOMS[S.kf].n):''} yet</option>`;
   sel.disabled=!shown.length;
@@ -1271,11 +1291,13 @@ async function orkGet(params){let last;
 async function orkFind(f){
   const name=$('#'+f+'Name').value.trim(); if(name.length<2){showMatchIn(f,'Type a persona first, then search.');return;}
   showMatchIn(f,'Searching the ORK…');
-  try{const d=await orkGet({call:'SearchService/Player',type:'All',search:name,limit:'25'});
+  try{const d=await orkGet({call:'SearchService/Player',type:'All',search:name,limit:'60'});
     const res=(Array.isArray(d.Result)?d.Result:[]).filter(x=>!/walk ?up/i.test(x.Persona||'')&&String(x.Suspended??'0')==='0');
-    const kid=String(KINGDOMS[tKingdom(T())].id); res.sort((a,b)=>(String(b.KingdomId)===kid)-(String(a.KingdomId)===kid));
+    const kid=String(KINGDOMS[tKingdom(T())].id), pk=(($('#'+f+'Park')||{}).value||'').trim().toLowerCase();
+    const rank=x=>(pk&&String(x.ParkName||'').toLowerCase()===pk?2:0)+(String(x.KingdomId)===kid?1:0);
+    res.sort((a,b)=>rank(b)-rank(a));
     if(!res.length){showMatchIn(f,'No ORK players found with that name. Check the spelling, or paste the ORK profile link.');return;}
-    showMatchIn(f,`<div class="hits">${res.slice(0,8).map(x=>`<button type="button" class="hit" data-act="orkpick" data-form="${f}" data-id="${esc(x.MundaneId)}" data-p="${esc(x.Persona)}" data-park="${esc(x.ParkName||'')}"><span><b>${esc(x.Persona)}</b> <small>${esc(x.ParkName||'')} · ${esc(x.KAbbr||x.KingdomName||'')}</small></span><small>#${esc(x.MundaneId)}</small></button>`).join('')}</div>`);
+    showMatchIn(f,`<div class="hits">${res.slice(0,12).map(x=>`<button type="button" class="hit" data-act="orkpick" data-form="${f}" data-id="${esc(x.MundaneId)}" data-p="${esc(x.Persona)}" data-park="${esc(x.ParkName||'')}"><span><b>${esc(x.Persona)}</b> <small>${esc(x.ParkName||'')} · ${esc(x.KAbbr||x.KingdomName||'')}</small></span><small>#${esc(x.MundaneId)}</small></button>`).join('')}</div>`);
   }catch(e){console.error(e);showMatchIn(f,'Couldn’t reach the ORK right now. Paste the ORK profile link instead.');}
 }
 function findAwards(d){const q=[d];while(q.length){const v=q.shift();
@@ -1301,17 +1323,68 @@ async function refreshWarrior(manual){
   if(failed) toast(`Couldn’t reach the ORK for ${failed} fighter${failed===1?'':'s'}. Try again later.`);
 }
 function autoWarrior(){if(S.isMarshal&&S.tid&&!S.autoWar[S.tid]){S.autoWar[S.tid]=true;setTimeout(()=>refreshWarrior(false),0);}}
-async function refreshRoster(){
-  const kk=tKingdom(T()), K=KINGDOMS[kk], ids=K.parks.map(p=>p[0]).filter(Boolean);
-  toast(`Loading ${ids.length} ${K.n} park rosters from the ORK…`); const seen=new Set(), players=[];
-  try{for(const id of ids){const d=await orkGet({call:'Report/GetActivePlayers','request[ParkId]':id});
-    (Array.isArray(d.ActivePlayerSummary)?d.ActivePlayerSummary:[]).forEach(x=>{const mid=String(x.MundaneId);
-      if(!mid||seen.has(mid)||/walk ?up/i.test(x.Persona||''))return; seen.add(mid);
-      players.push({id:mid,p:String(x.Persona||'').replace(/\s+/g,' ').trim(),park:x.ParkName||'',k:kk});});}
-  }catch(e){console.error(e);toast('Couldn’t reach the ORK. Try again later.');return;}
+/* The kingdom's park list comes from the ORK (Kingdom/GetParks) so new parks are picked up; the
+   built-in list is the fallback and is always included. One park failing doesn't stop the rest. */
+S.orkParks={}; S.parkCache={};
+function findList(d,key){const q=[d];while(q.length){const v=q.shift();
+  if(Array.isArray(v)){if(v.some(o=>o&&typeof o==='object'&&key in o))return v;v.forEach(x=>q.push(x));}
+  else if(v&&typeof v==='object')Object.values(v).forEach(x=>q.push(x));}return [];}
+async function kingdomParks(kk){const K=KINGDOMS[kk], m=new Map(K.parks.filter(p=>p[0]).map(p=>[String(p[0]),p[1]]));
+  try{const d=await orkGet({call:'Kingdom/GetParks','request[KingdomId]':K.id});
+    findList(d,'ParkId').forEach(x=>{const id=String(x.ParkId||''), a=String(x.Active??'Active').toLowerCase();
+      if(id&&id!=='0'&&!['retired','0','false','inactive'].includes(a)&&!m.has(id)) m.set(id,String(x.Name||x.ParkName||'').trim());});}
+  catch(e){console.warn('Kingdom/GetParks',e);}
+  S.orkParks[kk]=[...m].map(([id,n])=>({id,n})); return S.orkParks[kk];}
+const rosterRow=(x,kk)=>{const mid=String(x.MundaneId||''); if(!mid||/walk ?up/i.test(x.Persona||''))return null;
+  return {id:mid,p:String(x.Persona||'').replace(/\s+/g,' ').trim(),park:x.ParkName||'',k:kk};};
+async function refreshRoster(quiet){
+  if(S.rosterBusy) return; S.rosterBusy=true; try{await loadRoster(quiet);} finally{S.rosterBusy=false;}}
+async function loadRoster(quiet){
+  const kk=tKingdom(T()), K=KINGDOMS[kk]; if(!quiet) toast(`Loading ${K.n} park rosters from the ORK…`);
+  const parks=await kingdomParks(kk), seen=new Set(), players=[], failed=[];
+  for(const pk of parks){try{const d=await orkGet({call:'Report/GetActivePlayers','request[ParkId]':pk.id});
+      (Array.isArray(d.ActivePlayerSummary)?d.ActivePlayerSummary:[]).forEach(x=>{const r=rosterRow(x,kk); if(r&&!seen.has(r.id)){seen.add(r.id);players.push(r);}});}
+    catch(e){console.error(e);failed.push(pk.n||pk.id);}}
+  if(!players.length){if(!quiet)toast('Couldn’t reach the ORK. Try again later.');return;}
   const keep=S.roster.players.filter(p=>(p.k||'westmarch')!==kk&&!seen.has(p.id)), all=[...keep,...players].sort((a,b)=>a.p.toLowerCase().localeCompare(b.p.toLowerCase()));
-  if(await w(()=>S.db.doc('ork/roster').set({updatedAt:stamp(),source:'ORK active players by kingdom',players:all}))) toast(`Loaded ${players.length} ${K.n} players.`);
+  if(await w(()=>S.db.doc('ork/roster').set({updatedAt:stamp(),source:'ORK active players by kingdom',rosterAt:{...(S.roster.rosterAt||{}),[kk]:Date.now()},players:all}))&&!quiet)
+    toast(`Loaded ${players.length} players from ${parks.length-failed.length} ${K.n} parks.`+(failed.length?` Couldn’t reach: ${failed.join(', ')}.`:''));
 }
+
+/* When a marshal opens any event (fighting, A&S or bards), refresh that kingdom's persona list
+   if it's missing or more than two weeks old, so entrants see the whole kingdom. */
+S.rosterAuto={};
+function autoRoster(){if(!S.isMarshal||!S.db||!S.rosterLoaded||!T())return; const kk=tKingdom(T()); if(S.rosterAuto[kk])return;
+  const at=(S.roster.rosterAt||{})[kk]||0, has=S.roster.players.some(p=>(p.k||'westmarch')===kk);
+  if(has&&Date.now()-at<14*864e5)return; S.rosterAuto[kk]=true; setTimeout(()=>refreshRoster(true),0);}
+
+/* Pick yourself by park: once a park is chosen, list that park's ORK players so people can tap
+   their own name and get the right ORK ID, even when several players share a persona. Uses the
+   saved roster, or asks the ORK for that one park when the roster doesn't have it. */
+const PICK_FORMS=['su','rq','ae','bb'];
+function parkIdByName(n){const lc=n.trim().toLowerCase(); if(!lc)return '';
+  for(const K of Object.values(KINGDOMS)){const p=K.parks.find(x=>x[1].toLowerCase()===lc&&x[0]); if(p)return String(p[0]);}
+  for(const l of Object.values(S.orkParks)){const p=l.find(x=>(x.n||'').toLowerCase()===lc); if(p)return p.id;}
+  return '';}
+async function parkPlayers(name){const lc=name.trim().toLowerCase();
+  const cached=S.roster.players.filter(r=>(r.park||'').toLowerCase()===lc); if(cached.length)return cached;
+  const id=parkIdByName(name); if(!id)return [];
+  if(!S.parkCache[id]){const d=await orkGet({call:'Report/GetActivePlayers','request[ParkId]':id});
+    S.parkCache[id]=(Array.isArray(d.ActivePlayerSummary)?d.ActivePlayerSummary:[]).map(x=>rosterRow(x,'')).filter(Boolean)
+      .sort((a,b)=>a.p.toLowerCase().localeCompare(b.p.toLowerCase()));}
+  return S.parkCache[id];}
+async function showParkPicker(f){const park=($('#'+f+'Park')||{}).value||''; if(!park.trim()||parseOrk(($('#'+f+'Ork')||{}).value||''))return;
+  showMatchIn(f,`Looking up ${esc(park)} in the ORK…`);
+  let list=[]; try{list=await parkPlayers(park);}catch(e){console.error(e);}
+  if(($('#'+f+'Park')||{}).value!==park)return;
+  if(!list.length){showMatchIn(f,`No ORK roster found for ${esc(park)}. Type your persona and use Search the ORK, or paste your ORK profile link.`);return;}
+  const q=(($('#'+f+'Name')||{}).value||'').trim().toLowerCase();
+  showMatchIn(f,`<label for="${f}Pick" style="display:block;margin-bottom:6px">Pick yourself from ${esc(park)}’s ORK players (${list.length})</label>
+    <select id="${f}Pick" data-pickform="${f}" style="max-width:100%"><option value="">Choose your persona…</option>${list.map(r=>`<option value="${esc(r.id)}" data-p="${esc(r.p)}" data-park="${esc(r.park||park)}" ${q&&r.p.toLowerCase()===q?'selected':''}>${esc(r.p)} · #${esc(r.id)}</option>`).join('')}</select>
+    <small class="muted" style="display:block;margin-top:6px">Not listed? Only players with recent sign-ins show here. Use Search the ORK or paste your profile link.</small>`);}
+document.addEventListener('change',e=>{const t=e.target;
+  const m=/^(su|rq|ae|bb)Park$/.exec(t.id||''); if(m&&PICK_FORMS.includes(m[1])){showParkPicker(m[1]);return;}
+  if(t.dataset&&t.dataset.pickform&&t.value){const o=t.selectedOptions[0]; H.orkpick({form:t.dataset.pickform,id:t.value,p:o.dataset.p,park:o.dataset.park});}});
 
 /* ---------- send recommendations straight to the ORK (web app only) ----------
    Uses the ORK's own calls: Authorization/Authorize for a session token, then
@@ -1606,7 +1679,7 @@ function renderEntries(){
     $('#asFormBox').innerHTML=open?`<div class="panel"><h2>Submit an entry</h2>
       <form id="aeForm" class="form as-form">
         <div class="row"><div class="field" style="flex-basis:240px"><label for="aeName">Your persona</label><input id="aeName" list="fighterNames" autocomplete="off" required></div>
-          <div class="field"><label for="aePark">Home park</label><input id="aePark" list="parks" autocomplete="off"></div></div>
+          <div class="field"><label for="aePark">Home park</label><input id="aePark" list="parks" autocomplete="off" placeholder="Choose your park to find yourself"></div></div>
         <div class="row"><button class="btn sm ghost" type="button" data-act="orkfind" data-form="ae">Find me in the ORK</button>
           <div class="field" style="flex-basis:220px"><label for="aeOrk">…or paste your ORK profile link</label><input id="aeOrk" autocomplete="off" inputmode="url"></div></div>
         <div id="aeMatch" class="match-note" hidden></div>
@@ -1954,7 +2027,7 @@ function renderBBEnter(){
       :!S.user?`<div class="panel"><h2>Enter the Battle of the Bards</h2><p class="muted">Sign in with Google to enter. You’ll use the same sign-in each round to post your performance link.</p><button class="btn" data-act="signin">Sign in to enter</button></div>`
       :`<div class="panel"><h2>Enter the Battle of the Bards</h2><form id="bbSignup" class="form">
         <div class="row"><div class="field" style="flex-basis:240px"><label for="bbName">Your persona</label><input id="bbName" list="fighterNames" autocomplete="off" required></div>
-          <div class="field"><label for="bbPark">Home park</label><input id="bbPark" list="parks" autocomplete="off"></div></div>
+          <div class="field"><label for="bbPark">Home park</label><input id="bbPark" list="parks" autocomplete="off" placeholder="Choose your park to find yourself"></div></div>
         <div class="row"><button class="btn sm ghost" type="button" data-act="orkfind" data-form="bb">Find me in the ORK</button>
           <div class="field" style="flex-basis:220px"><label for="bbOrk">…or paste your ORK profile link</label><input id="bbOrk" autocomplete="off" inputmode="url"></div></div>
         <div id="bbMatch" class="match-note" hidden></div>
@@ -2189,7 +2262,7 @@ Object.assign(H2,{
   db.collection('divisions').onSnapshot(s=>{S.divs=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));mark('d');render();},fail);
   db.collection('tallies').onSnapshot(s=>{S.tallies=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));render();},fail);
   db.doc('ork/awards').onSnapshot(s=>{const d=s.exists?s.data():null;S.awards={players:(d&&d.players)||{},updatedAt:d?.updatedAt||''};render();},fail);
-  db.doc('ork/roster').onSnapshot(s=>{const d=s.exists?s.data():null;S.roster={players:(d&&Array.isArray(d.players))?d.players:[],updatedAt:d?.updatedAt||''};render();},fail);
+  db.doc('ork/roster').onSnapshot(s=>{const d=s.exists?s.data():null;S.roster={players:(d&&Array.isArray(d.players))?d.players:[],updatedAt:d?.updatedAt||'',rosterAt:d?.rosterAt||{}};S.rosterLoaded=true;render();},fail);
   db.collection('results').onSnapshot(s=>{S.results=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));S.resultsSeen=true;render();},fail);
 })();
 

@@ -163,3 +163,13 @@ The ORK is now behind Cloudflare's bot check, which blocks the old `_redirects` 
 - It only forwards the six ORK calls Field Marshal uses: player search, active players, awards, sign-in, sign-out and award recommendation. It only answers pages on this site, so nobody else can borrow the key.
 - ORK sign-in, sign-out and recommendations must be sent as POST, so passwords and session tokens stay out of URLs and logs, as the ORK team asks.
 - The key goes only in the `X-Ork-Key` header. `X-ORK-Client` is `Field Marshal/1.0`.
+
+## Kingdom and park heraldry
+The header shows the crest of the kingdom you're looking at, and the Parks tab shows each park's heraldry. Both load from the ORK by ID, so updates made in the ORK show up on their own.
+To use your own image for a kingdom instead, put it in a `logos` folder next to index.html, named after the kingdom: `logos/westmarch.png`, `logos/neverwinter.png` (.jpg also works). A park override is `logos/park-<ORK park ID>.png`, used only if the ORK has none. If no image loads, the crest simply isn't shown.
+
+## Persona lookup
+- When a marshal opens any event, Field Marshal refreshes that kingdom's persona list from the ORK if it's missing or more than two weeks old. It asks the ORK for the kingdom's current parks (Kingdom/GetParks), so new parks are included. "Refresh park rosters" in the Signups tab of a fighting event does it on demand.
+- Entrants can choose their park first: a list of that park's ORK players appears, and picking their name fills in their ORK ID. If the saved list doesn't have that park, the app asks the ORK for it directly.
+- "Find me in the ORK" ranks matches from the chosen park first, then the event's kingdom.
+- Kingdom/GetParks was added to the relay allowlist in netlify/functions/ork-api.mjs.

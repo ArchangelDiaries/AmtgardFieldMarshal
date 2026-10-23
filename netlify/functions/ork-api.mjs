@@ -16,6 +16,7 @@ const UA = `${CLIENT} (+${SITE}${process.env.ORK_CONTACT ? `; ${process.env.ORK_
 export const ALLOWED = new Set([
   'SearchService/Player',
   'Report/GetActivePlayers',
+  'Kingdom/GetParks',
   'Player/AwardsForPlayer',
   'Authorization/Authorize',
   'Authorization/DestroySession',
