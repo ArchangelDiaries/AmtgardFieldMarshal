@@ -1699,6 +1699,9 @@ function renderEntries(){
       return `<div class="entry"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span></div>
       <div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}${e.orkId?' · '+orkLink(e.orkId):''}</div>
       ${S.isMarshal?`<div class="row m-only"><select data-assub="${esc(e.id)}" aria-label="Category for ${esc(e.title)}" style="max-width:300px">${subOptions(c,e.sub)}</select>
+        <input id="aork-${esc(e.id)}" data-asork="${esc(e.id)}" value="${esc(e.orkId||'')}" placeholder="ORK link or ID" aria-label="ORK profile for ${esc(e.title)}" autocomplete="off" inputmode="url" style="max-width:220px">
+        ${(()=>{if(e.orkId)return ''; const o=S.as.entries.find(x=>x.orkId&&x.id!==e.id&&String(x.name||'').trim().toLowerCase()===String(e.name||'').trim().toLowerCase());
+          return o?`<button class="btn sm ghost" data-act="asorkuse" data-e="${esc(e.id)}" data-o="${esc(o.orkId)}">Use ORK #${esc(o.orkId)} from their other entry</button>`:'';})()}
         <button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="asdel" data-e="${esc(e.id)}">${S.confirm===k?'Tap again to withdraw':'Withdraw'}</button></div>`:''}</div>`;}).join('')}`).join('')
     :'<p class="none">No entries yet.</p>';
   setHtml($('#asEntryList'),`<h2>Entries · <span class="num">${S.as.entries.length}</span></h2>${list}`,'entries');
@@ -1788,6 +1791,7 @@ document.addEventListener('input',e=>{const t=e.target;
 document.addEventListener('change',e=>{const t=e.target;
   if(t.dataset&&t.dataset.js&&t.value!==''){const c=asCfg(T()); let v=snapQ(+t.value); v=Math.min(c.max,Math.max(c.min,v)); t.value=v.toFixed(2); const d=draftsFor(t.dataset.jm);(d[t.dataset.js]||(d[t.dataset.js]={})).score=t.value;}
   else if(t.id==='asProxy'){S.as.proxyJ=t.value||null; delete S.as.last.proxy; render();}
+  else if(t.dataset&&t.dataset.asork!==undefined){const raw=t.value.trim(), id=parseOrk(raw); if(raw&&!id){toast('That doesn’t look like an ORK profile link or ID.');return;} setEntryOrk(t.dataset.asork,id||null);}
   else if(t.dataset&&t.dataset.assub){w(()=>S.db.doc('entries/'+t.dataset.assub).update({sub:t.value}));}
   else if(t.id==='asLive'){w(()=>S.db.doc('tournaments/'+S.tid).update({'as.live':t.checked}));}
   else if(t.id==='asOpen'){w(()=>S.db.doc('tournaments/'+S.tid).update({signupsOpen:t.checked}));}
@@ -1865,7 +1869,15 @@ function renderASAwards(){
 }
 
 /* ---------- actions ---------- */
+/* Marshal fix for an entry submitted without an ORK link. Also fills it on the same player's other
+   entries in this event that have no ORK ID yet (same persona and park), so their standings merge. */
+async function setEntryOrk(eid,id){const e=S.as.entries.find(x=>x.id===eid); if(!e||(e.orkId||null)===id) return;
+  const same=x=>String(x.name||'').trim().toLowerCase()===String(e.name||'').trim().toLowerCase()&&String(x.park||'').trim().toLowerCase()===String(e.park||'').trim().toLowerCase();
+  const sibs=id?S.as.entries.filter(x=>x.id!==eid&&!x.orkId&&same(x)):[];
+  if(await w(async()=>{const b=S.db.batch(); [e,...sibs].forEach(x=>b.update(S.db.doc('entries/'+x.id),{orkId:id})); await b.commit();})){
+    S.as.last={}; render(); toast(id?`Linked ${e.name} to ORK #${id}`+(sibs.length?` on ${sibs.length+1} entries.`:'.'):`Removed the ORK link from ${e.title}.`);}}
 Object.assign(H2,{
+  asorkuse:ds=>setEntryOrk(ds.e,ds.o),
   copyfb:()=>{const i=$('#fbUrl'); if(!i) return; try{navigator.clipboard.writeText(i.value).then(()=>toast('Link copied.'),()=>{i.select();toast('Select the link and copy it.');});}catch(e){i.select();}},
   jsave:async ds=>{const m=ds.jm||'', e=S.as.entries.find(x=>x.id===ds.e), j=m?S.as.judges.find(x=>x.id===S.as.proxyJ):S.as.myJudge; if(!e||!j) return;
     const c=asCfg(T()), jk=jKey(j), pre=m?'p':'';
@@ -1939,7 +1951,7 @@ Object.assign(H2,{
     }catch(e){toast('Couldn’t reach the ORK. Nothing was sent.');}
     render();},
 });
-['asOrkSend','asFinalize','asReopen','asDelT','asdel','addJudge','addPaperJudge','rmOrphans','rmJudge','asRec','asLadders'].forEach(a=>WRITE_ACTS.add(a));
+['asOrkSend','asFinalize','asReopen','asDelT','asdel','addJudge','addPaperJudge','rmOrphans','asorkuse','rmJudge','asRec','asLadders'].forEach(a=>WRITE_ACTS.add(a));
 
 /* ---------- private feedback link: #feedback-<key> ---------- */
 async function showFeedback(){
