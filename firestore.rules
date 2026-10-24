@@ -58,6 +58,21 @@ service cloud.firestore {
         && (!('feedback' in d) || (d.feedback is string && d.feedback.size() <= 5000))
         && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('status', 'open') != 'final';
     }
+    // A marshal of the event types in a score for a judge on its list (a paper judge, or a judge
+    // without their phone). The score is filed under that judge, stamped with the marshal's email.
+    function validProxyScore(id, d) {
+      return isMarshalOfT(d.tid)
+        && d.keys().hasOnly(['tid', 'eid', 'judge', 'score', 'feedback', 'at', 'by'])
+        && d.judge is string && d.judge.size() > 0
+        && exists(/databases/$(database)/documents/judges/$(d.tid + '__' + d.judge))
+        && id == d.eid + '__' + d.judge
+        && d.by == myEmail()
+        && d.score is number
+        && d.score >= get(/databases/$(database)/documents/tournaments/$(d.tid)).data['as']['min']
+        && d.score <= get(/databases/$(database)/documents/tournaments/$(d.tid)).data['as']['max']
+        && (!('feedback' in d) || (d.feedback is string && d.feedback.size() <= 5000))
+        && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('status', 'open') != 'final';
+    }
     function isHeadJudge(tid) {
       return signedIn() && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('bb', {}).get('head', '') == myEmail();
     }
@@ -144,10 +159,10 @@ service cloud.firestore {
       allow create, update: if isMarshalOfT(request.resource.data.tid);
       allow delete: if isMarshalOfT(resource.data.tid);
     }
-    // Scores: judges write their own; judges of the event and marshals can read.
+    // Scores: judges write their own, or a marshal enters one for a listed judge; judges of the event and marshals can read.
     match /scores/{id} {
       allow read: if isMarshal() || isJudge(resource.data.tid);
-      allow create, update: if validScore(id, request.resource.data);
+      allow create, update: if validScore(id, request.resource.data) || validProxyScore(id, request.resource.data);
       allow delete: if isMarshalOfT(resource.data.tid);
     }
     // Public judged averages (no individual scores).

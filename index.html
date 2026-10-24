@@ -1528,7 +1528,7 @@ S.as={tid:null,key:'',entries:[],judges:[],myJudge:null,scores:{},scoresReadable
 const isArts=t=>!!t&&t.kind==='arts';
 const asCfg=t=>{const a=(t&&t.as)||{};return {min:Number.isFinite(+a.min)?+a.min:1,max:Number.isFinite(+a.max)?+a.max:5,topN:+a.topN||5,thr:Number.isFinite(+a.thr)?+a.thr:4,subs:Array.isArray(a.subs)&&a.subs.length?a.subs:ALL_SUBS,live:!!a.live};};
 const f2=n=>(Math.round(n*100)/100).toFixed(2);
-const snapQ=v=>Math.round(v*4)/4;
+const snapQ=v=>Math.round(v*100)/100;  // scores are kept to hundredths (.00)
 const playerKey=e=>e.orkId?('o'+e.orkId):('n'+String(e.name||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-'));
 const myEmail=()=>(S.user?.email||'').toLowerCase();
 function setHtml(el,html,key){if(!el)return; if(S.as.last[key]===html)return; const ae=document.activeElement,id=ae&&ae.id,ss=ae&&ae.selectionStart,se=ae&&ae.selectionEnd;
@@ -1569,11 +1569,11 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
   const divBlock=$('#tDivs').parentElement;
   divBlock.insertAdjacentHTML('beforebegin',`<div id="tArts" hidden class="stack" style="gap:12px">
     <div class="row">
-      <div class="field" style="flex:0 1 130px"><label for="aMin">Lowest score</label><input id="aMin" type="number" step="0.25" value="1"></div>
-      <div class="field" style="flex:0 1 130px"><label for="aMax">Highest score</label><input id="aMax" type="number" step="0.25" value="5"></div>
+      <div class="field" style="flex:0 1 130px"><label for="aMin">Lowest score</label><input id="aMin" type="number" step="0.01" value="1"></div>
+      <div class="field" style="flex:0 1 130px"><label for="aMax">Highest score</label><input id="aMax" type="number" step="0.01" value="5"></div>
       <div class="field" style="flex:0 1 190px"><label for="aTop">Categories counted</label><input id="aTop" type="number" min="1" max="36" value="5"></div>
-      <div class="field" style="flex:0 1 220px"><label for="aThr">Award threshold</label><input id="aThr" type="number" step="0.25" value="4"></div></div>
-    <p class="foot" style="margin:0">Judges score in .25 steps. Entries averaging at or above the award threshold are flagged for award recommendations. A player’s Dragonmaster score adds their best score in each of their top sub-categories (Westmarch midreign counts 5).</p>
+      <div class="field" style="flex:0 1 220px"><label for="aThr">Award threshold</label><input id="aThr" type="number" step="0.01" value="4"></div></div>
+    <p class="foot" style="margin:0">Judges score to two decimal places (.00). Entries averaging at or above the award threshold are flagged for award recommendations. A player’s Dragonmaster score adds their best score in each of their top sub-categories (Westmarch midreign counts 5).</p>
     <div><div class="lbl" style="margin-bottom:6px">Sub-categories offered</div><div class="catgrid" id="aSubs">${AS_CATS.map(c=>`<fieldset><legend>${c.n}</legend>${c.subs.map(([k,n])=>`<label><input type="checkbox" value="${k}" checked>${esc(n)}</label>`).join('')}</fieldset>`).join('')}</div></div></div>`);
   const combatBits=[$('#tFormat').closest('.field'),$('#tMinField'),$('#tFormatHelp'),divBlock];
   const sync=()=>{const kind=$('#tKind').value; $('#tArts').hidden=kind!=='arts'; const tb=$('#tBards'); if(tb) tb.hidden=kind!=='bards';
@@ -1586,7 +1586,7 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
     e.preventDefault(); e.stopImmediatePropagation();
     const min=+$('#aMin').value, max=+$('#aMax').value, topN=Math.max(1,parseInt($('#aTop').value)||5), thr=+$('#aThr').value;
     const subs=[...document.querySelectorAll('#aSubs input:checked')].map(i=>i.value);
-    if(!(max>min)||snapQ(min)!==min||snapQ(max)!==max){toast('Scores need a lowest and highest value in .25 steps, with the highest above the lowest.');return;}
+    if(!(max>min)||snapQ(min)!==min||snapQ(max)!==max){toast('Scores need a lowest and highest value with at most two decimals, with the highest above the lowest.');return;}
     if(!(thr>=min&&thr<=max)){toast('The award threshold has to fall inside the score range.');return;}
     if(!subs.length){toast('Offer at least one sub-category.');return;}
     const name=$('#tName').value.trim(); if(!name) return;
@@ -1601,7 +1601,7 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
 function watchArts(){
   const t=T(); const key=isArts(t)?[S.tid,S.isMarshal?'m':'',myEmail()].join('|'):'';
   if(key===S.as.key) return; (S.as.unsubs||[]).forEach(u=>u()); S.as.unsubs=[]; S.as.key=key;
-  Object.assign(S.as,{entries:[],judges:[],myJudge:null,scores:{},scoresReadable:false,results:null,last:{}});
+  Object.assign(S.as,{entries:[],judges:[],myJudge:null,scores:{},scoresReadable:false,results:null,last:{},proxyJ:null,pdraft:{}});
   if(!key||!S.db) return;
   const tid=S.tid, db=S.db, on=(q,f)=>S.as.unsubs.push(q.onSnapshot(f,e=>console.warn('A&S listener',e.code||e)));
   on(db.collection('entries').where('tid','==',tid),s=>{S.as.entries=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.at||0)-(b.at||0));render();});
@@ -1638,6 +1638,9 @@ function asStandings(avg){
     return {...p,nsubs:Object.keys(p.subs).length,counted:top.length,total:top.reduce((s,x)=>s+x,0),best};})
    .sort((a,b)=>b.total-a.total||(b.best[0]||0)-(a.best[0]||0)||String(a.name).localeCompare(String(b.name)));
 }
+/* A judge's key is their email, or paper-<name> for a judge without the app whose scores a marshal types in. */
+const jKey=j=>j.email||j.key||'';
+const jName=j=>j.paper?(j.name||j.key):j.email;
 const scoresFor=eid=>Object.values(S.as.scores).filter(s=>s.eid===eid);
 const judgeCanScore=(j,e)=>!!j&&(!j.cats||!j.cats.length||j.cats.includes(SUB[e.sub]?.cat));
 
@@ -1653,7 +1656,7 @@ render=function(){
   document.body.classList.toggle('marshal',!!S.isMarshal);
   renderAuth(); renderHeader(); watchArts();
   const c=asCfg(t), players=new Set(S.as.entries.map(playerKey)).size;
-  $('#tmeta').innerHTML=`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${S.as.entries.length}</b> entries from <b>${players}</b> player${players===1?'':'s'}</span><span>Arts &amp; Sciences · Dragonmaster</span><span>Scores ${c.min}–${c.max} in .25 steps · best ${c.topN} sub-categories count</span>`;
+  $('#tmeta').innerHTML=`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${S.as.entries.length}</b> entries from <b>${players}</b> player${players===1?'':'s'}</span><span>Arts &amp; Sciences · Dragonmaster</span><span>Scores ${f2(c.min)}–${f2(c.max)} · best ${c.topN} sub-categories count</span>`;
   $('#tabs').hidden=false; $('#empty').hidden=true;
   ['signups','pits','brackets','board','players','parks','awards'].forEach(x=>$('#tab-'+x).hidden=true);
   const canJudge=S.isMarshal||!!S.as.myJudge;
@@ -1722,49 +1725,65 @@ document.addEventListener('submit',async e=>{if(e.target.id!=='aeForm')return; e
 /* ---------- Judging tab ---------- */
 function renderJudging(){
   const t=T(), c=asCfg(t), root=$('#as-judging'), final=t.status==='final';
-  if(!$('#asJudgePanel')) root.innerHTML=`<div class="stack"><div id="asJudgeAdmin"></div><div id="asJudgePanel"></div></div>`;
+  if(!$('#asJudgePanel')){root.innerHTML=`<div class="stack"><div id="asJudgeAdmin"></div><div id="asProxyPanel"></div><div id="asJudgePanel"></div></div>`; ['proxy','jpanel','jlist','progress'].forEach(k=>delete S.as.last[k]); S.as.adminTid=null;}
   // Crat: judge list, add form (built once per event), progress
   if(S.isMarshal){
     if(S.as.adminTid!==S.tid){S.as.adminTid=S.tid;
       $('#asJudgeAdmin').innerHTML=`<div class="panel m-only"><h2>Judges</h2><div id="asJudgeList"></div>
         <div class="stack" style="gap:10px;margin-top:12px"><div class="row"><div class="field"><label for="jEmail">Add a judge by their Google email</label><input id="jEmail" type="email" autocomplete="off" placeholder="judge@gmail.com"></div>
           <button class="btn" data-act="addJudge">Add judge</button></div>
+          <div class="row"><div class="field"><label for="jPaper">…or add a judge without the app (a marshal types in their scores)</label><input id="jPaper" autocomplete="off" maxlength="60" placeholder="Judge’s persona"></div>
+          <button class="btn ghost" data-act="addPaperJudge">Add paper judge</button></div>
           <div><div class="lbl" style="margin-bottom:4px">Categories they judge (none checked = all)</div><div class="checks" id="jCats">${AS_CATS.map(cat=>`<label><input type="checkbox" value="${cat.k}">${esc(cat.n)}</label>`).join('')}</div></div>
           <p class="foot" style="margin:0">Judges sign in with Marshal sign-in using that Google account. They see only this event’s Judging tab and never each other’s scores.</p></div>
         <div id="asProgress" style="margin-top:14px"></div></div>`;}
-    const jl=S.as.judges.slice().sort((a,b)=>a.email.localeCompare(b.email));
-    setHtml($('#asJudgeList'),jl.length?`<ul class="mlist">${jl.map(j=>{const k='rmJ:'+j.id,n=Object.values(S.as.scores).filter(s=>s.judge===j.email).length;
-      return `<li><span>${esc(j.email)} <small class="muted">· ${j.cats&&j.cats.length?j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', '):'All categories'} · ${n} scored</small></span>
+    const jl=S.as.judges.slice().sort((a,b)=>jName(a).localeCompare(jName(b)));
+    setHtml($('#asJudgeList'),jl.length?`<ul class="mlist">${jl.map(j=>{const k='rmJ:'+j.id,n=Object.values(S.as.scores).filter(s=>s.judge===jKey(j)).length;
+      return `<li><span>${esc(jName(j))}${j.paper?' <span class="rchip">scores entered by a marshal</span>':''} <small class="muted">· ${j.cats&&j.cats.length?j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', '):'All categories'} · ${n} scored</small></span>
         <button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="rmJudge" data-j="${esc(j.id)}">${S.confirm===k?'Tap again to remove':'Remove'}</button></li>`;}).join('')}</ul>`:'<p class="none">No judges yet.</p>','jlist');
     const avg=asAverages();
     setHtml($('#asProgress'),S.as.entries.length?`<h3 style="margin-bottom:6px">Scoring progress</h3><div class="scroll"><table><thead><tr><th>Entry</th><th>Category</th><th class="n">Judges</th><th class="n">Average</th></tr></thead><tbody>
       ${S.as.entries.map(e=>{const elig=S.as.judges.filter(j=>judgeCanScore(j,e)).length, a=avg[e.id];
         return `<tr><td><b>${esc(e.title)}</b><small class="muted" style="display:block">${esc(e.name)}</small></td><td>${esc(SUB[e.sub]?.n||e.sub)}</td><td class="n">${a?a.n:0} of ${elig}</td><td class="n">${a?f2(a.a)+(a.trim?' <small class="muted" title="Highest and lowest dropped">trimmed</small>':''):'—'}</td></tr>`;}).join('')}</tbody></table></div>`:'','progress');
   } else {$('#asJudgeAdmin').innerHTML=''; S.as.adminTid=null; delete S.as.last.jlist; delete S.as.last.progress;}
+  // Marshals: type in scores for any judge on the list (paper judges, or a judge without their phone).
+  if(S.isMarshal){const pj=S.as.judges.find(x=>x.id===S.as.proxyJ)||null;
+    const pick=`<div class="field" style="max-width:420px"><label for="asProxy">Enter scores for</label><select id="asProxy"><option value="">Choose a judge…</option>${S.as.judges.slice().sort((a,b)=>jName(a).localeCompare(jName(b))).map(x=>`<option value="${esc(x.id)}" ${x.id===S.as.proxyJ?'selected':''}>${esc(jName(x))}${x.paper?' (paper)':''}</option>`).join('')}</select></div>`;
+    setHtml($('#asProxyPanel'),
+      `<div class="panel m-only"><h2>Enter a judge’s scores <span class="sub">from their paper sheet</span></h2>
+        <p class="foot" style="margin:0 0 8px">Pick a judge, then type each score as they wrote it. It counts exactly like a score they saved themselves.</p>${pick}
+        ${pj?judgeCards(pj,'p'):''}</div>`,'proxy');} else setHtml($('#asProxyPanel'),'','proxy');
   // Scoring panel for anyone on the judge list
   const j=S.as.myJudge;
-  if(!j){setHtml($('#asJudgePanel'),S.isMarshal?'<div class="panel"><p class="none" style="margin:0">Add yourself as a judge to score entries here.</p></div>':'','jpanel');return;}
-  const mine=S.as.entries.filter(e=>judgeCanScore(j,e)), me=myEmail();
-  const done=mine.filter(e=>S.as.scores[e.id+'__'+me]).length;
-  const cards=mine.map(e=>{const saved=S.as.scores[e.id+'__'+me], dr=S.as.draft[e.id]||{};
+  if(!j){setHtml($('#asJudgePanel'),S.isMarshal?'':'','jpanel');return;}
+  setHtml($('#asJudgePanel'),`<div class="panel"><h2>Your judging <span class="sub">${judgeDone(j)} of ${S.as.entries.filter(e=>judgeCanScore(j,e)).length} scored</span></h2>
+    <p class="foot" style="margin:0 0 6px">${j.cats&&j.cats.length?'You judge: '+j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', ')+'.':'You judge every category.'} Scores run ${c.min}–${c.max}, to two decimals. ${final?'This event is finalized, so scores are locked.':'Each entrant sees your score and feedback, without your name, after the event is finalized.'}</p>
+    ${judgeCards(j,'')}</div>`,'jpanel');
+}
+const judgeDone=j=>S.as.entries.filter(e=>judgeCanScore(j,e)&&S.as.scores[e.id+'__'+jKey(j)]).length;
+/* Score cards for one judge. mode '' = the signed-in judge; 'p' = a marshal entering for judge j. */
+function judgeCards(j,mode){const t=T(), c=asCfg(t), final=t.status==='final', jk=jKey(j);
+  const drafts=mode?((S.as.pdraft||(S.as.pdraft={}))[jk]||(S.as.pdraft[jk]={})):S.as.draft, pre=mode?'p':'';
+  const mine=S.as.entries.filter(e=>judgeCanScore(j,e));
+  const cards=mine.map(e=>{const saved=S.as.scores[e.id+'__'+jk], dr=drafts[e.id]||{};
     const sv=dr.score!=null?dr.score:(saved?saved.score:''), fb=dr.fb!=null?dr.fb:(saved?saved.feedback||'':'');
     return `<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span><div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}</div></div>
       <span class="scorepill ${saved?'done':''}">${saved?f2(saved.score):'Not scored'}</span></div>
-      <details ${saved?'':'open'}><summary class="muted" style="cursor:pointer">Writeup${e.links&&e.links.length?` and ${e.links.length} link${e.links.length===1?'':'s'}`:''}</summary>
+      ${mode?'':`<details ${saved?'':'open'}><summary class="muted" style="cursor:pointer">Writeup${e.links&&e.links.length?` and ${e.links.length} link${e.links.length===1?'':'s'}`:''}</summary>
         <div class="wu" style="margin-top:6px">${esc(e.writeup)}</div>
-        ${(e.links||[]).map(l=>`<div><a class="orkl" href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length>70?l.slice(0,67)+'…':l)}</a></div>`).join('')}</details>
-      <div class="jrow"><div class="field" style="flex:0 0 auto"><label for="js-${esc(e.id)}">Score (${c.min}–${c.max})</label><input id="js-${esc(e.id)}" data-js="${esc(e.id)}" type="number" min="${c.min}" max="${c.max}" step="0.25" value="${esc(sv)}" ${final?'disabled':''}></div>
-        <div class="field" style="flex:1 1 280px"><label for="jf-${esc(e.id)}">Feedback for the entrant</label><textarea id="jf-${esc(e.id)}" data-jf="${esc(e.id)}" rows="3" maxlength="5000" ${final?'disabled':''}>${esc(fb)}</textarea></div>
-        <button class="btn" data-act="jsave" data-e="${esc(e.id)}" ${final?'disabled':''}>${saved?'Update':'Save score'}</button></div></div>`;}).join('');
-  setHtml($('#asJudgePanel'),`<div class="panel"><h2>Your judging <span class="sub">${done} of ${mine.length} scored</span></h2>
-    <p class="foot" style="margin:0 0 6px">${j.cats&&j.cats.length?'You judge: '+j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', ')+'.':'You judge every category.'} Scores run ${c.min}–${c.max} in .25 steps. ${final?'This event is finalized, so scores are locked.':'Each entrant sees your score and feedback, without your name, after the event is finalized.'}</p>
-    ${cards||'<p class="none">No entries in your categories yet.</p>'}</div>`,'jpanel');
+        ${(e.links||[]).map(l=>`<div><a class="orkl" href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length>70?l.slice(0,67)+'…':l)}</a></div>`).join('')}</details>`}
+      <div class="jrow"><div class="field" style="flex:0 0 auto"><label for="${pre}js-${esc(e.id)}">Score (${c.min}–${c.max})</label><input id="${pre}js-${esc(e.id)}" data-js="${esc(e.id)}" data-jm="${mode}" type="number" inputmode="decimal" min="${c.min}" max="${c.max}" step="0.01" value="${esc(sv)}" ${final?'disabled':''}></div>
+        <div class="field" style="flex:1 1 280px"><label for="${pre}jf-${esc(e.id)}">Feedback for the entrant${mode?' (optional)':''}</label><textarea id="${pre}jf-${esc(e.id)}" data-jf="${esc(e.id)}" data-jm="${mode}" rows="${mode?2:3}" maxlength="5000" ${final?'disabled':''}>${esc(fb)}</textarea></div>
+        <button class="btn" data-act="jsave" data-e="${esc(e.id)}" data-jm="${mode}" ${final?'disabled':''}>${saved?'Update':'Save score'}</button></div></div>`;}).join('');
+  return (mode?`<p class="foot" style="margin:10px 0 6px">${esc(jName(j))}: ${judgeDone(j)} of ${mine.length} scored.</p>`:'')+(cards||'<p class="none">No entries in this judge’s categories yet.</p>');
 }
+const draftsFor=m=>m?((S.as.pdraft||(S.as.pdraft={}))[jKey(S.as.judges.find(x=>x.id===S.as.proxyJ)||{})]||(S.as.pdraft[jKey(S.as.judges.find(x=>x.id===S.as.proxyJ)||{})]={})):S.as.draft;
 document.addEventListener('input',e=>{const t=e.target;
-  if(t.dataset&&t.dataset.js){(S.as.draft[t.dataset.js]||(S.as.draft[t.dataset.js]={})).score=t.value;}
-  else if(t.dataset&&t.dataset.jf){(S.as.draft[t.dataset.jf]||(S.as.draft[t.dataset.jf]={})).fb=t.value;}});
+  if(t.dataset&&t.dataset.js){const d=draftsFor(t.dataset.jm);(d[t.dataset.js]||(d[t.dataset.js]={})).score=t.value;}
+  else if(t.dataset&&t.dataset.jf){const d=draftsFor(t.dataset.jm);(d[t.dataset.jf]||(d[t.dataset.jf]={})).fb=t.value;}});
 document.addEventListener('change',e=>{const t=e.target;
-  if(t.dataset&&t.dataset.js&&t.value!==''){const c=asCfg(T()); let v=snapQ(+t.value); v=Math.min(c.max,Math.max(c.min,v)); t.value=v; (S.as.draft[t.dataset.js]||(S.as.draft[t.dataset.js]={})).score=String(v);}
+  if(t.dataset&&t.dataset.js&&t.value!==''){const c=asCfg(T()); let v=snapQ(+t.value); v=Math.min(c.max,Math.max(c.min,v)); t.value=v.toFixed(2); const d=draftsFor(t.dataset.jm);(d[t.dataset.js]||(d[t.dataset.js]={})).score=t.value;}
+  else if(t.id==='asProxy'){S.as.proxyJ=t.value||null; delete S.as.last.proxy; render();}
   else if(t.dataset&&t.dataset.assub){w(()=>S.db.doc('entries/'+t.dataset.assub).update({sub:t.value}));}
   else if(t.id==='asLive'){w(()=>S.db.doc('tournaments/'+S.tid).update({'as.live':t.checked}));}
   else if(t.id==='asOpen'){w(()=>S.db.doc('tournaments/'+S.tid).update({signupsOpen:t.checked}));}
@@ -1773,7 +1792,7 @@ document.addEventListener('change',e=>{const t=e.target;
 async function asSaveSettings(){const t=T(), c=asCfg(t);
   const min=+$('#asMin').value, max=+$('#asMax').value, topN=Math.max(1,parseInt($('#asTop').value)||c.topN), thr=+$('#asThr').value;
   if(Object.keys(S.as.scores).length&&(min!==c.min||max!==c.max)){toast('The score range can’t change after judges start scoring.');S.as.last={};render();return;}
-  if(!(max>min)||snapQ(min)!==min||snapQ(max)!==max||!(thr>=min&&thr<=max)){toast('Check the range: .25 steps, highest above lowest, threshold inside it.');S.as.last={};render();return;}
+  if(!(max>min)||snapQ(min)!==min||snapQ(max)!==max||!(thr>=min&&thr<=max)){toast('Check the range: at most two decimals, highest above lowest, threshold inside it.');S.as.last={};render();return;}
   await w(()=>S.db.doc('tournaments/'+S.tid).update({'as.min':min,'as.max':max,'as.topN':topN,'as.thr':thr}));}
 
 /* ---------- Scores tab (leaderboard + finalize + settings) ---------- */
@@ -1791,10 +1810,10 @@ function renderASBoard(){
     :`<div class="panel m-only"><div class="row" style="justify-content:space-between;align-items:center"><div><h2 style="margin:0 0 4px">Finalize event</h2><p class="foot" style="margin:0">${scored} of ${S.as.entries.length} entries have at least one score. Finalizing locks scoring, closes entries, and publishes each entrant’s scores and feedback to their private link.</p></div>
       <button class="btn ${S.confirm===k?'armed':''}" data-act="asFinalize" ${S.as.entries.length&&scored===S.as.entries.length?'':'disabled'}>${S.confirm===k?'Tap again to finalize':'Finalize event'}</button></div></div>`;
   const settings=!S.isMarshal?'':`<div class="panel m-only"><h2>Event settings</h2><div class="row">
-      <div class="field" style="flex:0 1 120px"><label for="asMin">Lowest</label><input id="asMin" type="number" step="0.25" value="${c.min}"></div>
-      <div class="field" style="flex:0 1 120px"><label for="asMax">Highest</label><input id="asMax" type="number" step="0.25" value="${c.max}"></div>
+      <div class="field" style="flex:0 1 120px"><label for="asMin">Lowest</label><input id="asMin" type="number" step="0.01" value="${c.min}"></div>
+      <div class="field" style="flex:0 1 120px"><label for="asMax">Highest</label><input id="asMax" type="number" step="0.01" value="${c.max}"></div>
       <div class="field" style="flex:0 1 170px"><label for="asTop">Categories counted</label><input id="asTop" type="number" min="1" max="36" value="${c.topN}"></div>
-      <div class="field" style="flex:0 1 200px"><label for="asThr">Award threshold</label><input id="asThr" type="number" step="0.25" value="${c.thr}"></div></div>
+      <div class="field" style="flex:0 1 200px"><label for="asThr">Award threshold</label><input id="asThr" type="number" step="0.01" value="${c.thr}"></div></div>
     <div class="checks" style="margin:12px 0"><label><input type="checkbox" id="asOpen" ${t.signupsOpen!==false?'checked':''}> Accept entries</label><label><input type="checkbox" id="asLive" ${c.live?'checked':''}> Show scores to everyone before finalizing</label></div>
     <button class="btn danger ${S.confirm==='asdelT:'+S.tid?'armed':''}" data-act="asDelT">${S.confirm==='asdelT:'+S.tid?'Tap again to delete everything':'Delete event'}</button></div>`;
   const board=show?`<div class="panel"><h2>Dragonmaster standings</h2>${rows?`<div class="scroll"><table><thead><tr><th>#</th><th>Player</th><th class="n">Entries</th><th class="n">Counted</th><th class="n" title="Score divided by the number of sub-categories counted">Average</th><th class="n">Score</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="none">No scores yet.</p>'}
@@ -1844,12 +1863,20 @@ function renderASAwards(){
 /* ---------- actions ---------- */
 Object.assign(H2,{
   copyfb:()=>{const i=$('#fbUrl'); if(!i) return; try{navigator.clipboard.writeText(i.value).then(()=>toast('Link copied.'),()=>{i.select();toast('Select the link and copy it.');});}catch(e){i.select();}},
-  jsave:async ds=>{const e=S.as.entries.find(x=>x.id===ds.e), j=S.as.myJudge; if(!e||!j) return; const c=asCfg(T()), me=myEmail();
-    const inp=$('#js-'+CSS.escape(ds.e)), fb=$('#jf-'+CSS.escape(ds.e)); const v=inp?snapQ(+inp.value):NaN;
+  jsave:async ds=>{const m=ds.jm||'', e=S.as.entries.find(x=>x.id===ds.e), j=m?S.as.judges.find(x=>x.id===S.as.proxyJ):S.as.myJudge; if(!e||!j) return;
+    const c=asCfg(T()), jk=jKey(j), pre=m?'p':'';
+    const inp=$('#'+pre+'js-'+CSS.escape(ds.e)), fb=$('#'+pre+'jf-'+CSS.escape(ds.e)); const v=inp?snapQ(+inp.value):NaN;
     if(!inp||inp.value===''||!(v>=c.min&&v<=c.max)){toast(`Enter a score from ${c.min} to ${c.max}.`);return;}
-    const data={tid:S.tid,eid:e.id,judge:me,score:v,feedback:(fb?fb.value:'').slice(0,5000),at:Date.now()};
-    try{await S.db.doc('scores/'+e.id+'__'+me).set(data); delete S.as.draft[e.id]; toast(`Saved ${f2(v)} for ${e.title}.`);}
-    catch(err){console.error(err);toast(err.code==='permission-denied'?'You’re not on this event’s judge list, or scoring is locked.':'Couldn’t save. Try again.');}},
+    const data={tid:S.tid,eid:e.id,judge:jk,score:v,feedback:(fb?fb.value:'').slice(0,5000),at:Date.now()};
+    if(m) data.by=myEmail();
+    try{await S.db.doc('scores/'+e.id+'__'+jk).set(data); delete draftsFor(m)[e.id]; toast(`Saved ${f2(v)} for ${e.title}${m?' from '+jName(j):''}.`);}
+    catch(err){console.error(err);toast(err.code==='permission-denied'?(m?'Couldn’t save for that judge. Publish the latest firestore.rules, and check the event isn’t finalized.':'You’re not on this event’s judge list, or scoring is locked.'):'Couldn’t save. Try again.');}},
+  addPaperJudge:async()=>{const n=$('#jPaper').value.trim().replace(/\s+/g,' '); if(!n){toast('Type the judge’s persona.');return;}
+    let slug='paper-'+(n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'judge'), k=slug, i=2;
+    while(S.as.judges.some(x=>jKey(x)===k)) k=slug+'-'+(i++);
+    const cats=[...document.querySelectorAll('#jCats input:checked')].map(i=>i.value);
+    if(await w(()=>S.db.doc('judges/'+S.tid+'__'+k).set({tid:S.tid,key:k,name:n,paper:true,cats,at:Date.now()}))){$('#jPaper').value='';document.querySelectorAll('#jCats input').forEach(i=>i.checked=false);
+      S.as.proxyJ=S.tid+'__'+k; delete S.as.last.proxy; toast(`${n} is on the judge list. Enter their scores below.`);}},
   addJudge:async()=>{const em=$('#jEmail').value.trim().toLowerCase(); if(!/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(em)){toast('Enter a full email address.');return;}
     const cats=[...document.querySelectorAll('#jCats input:checked')].map(i=>i.value);
     if(await w(()=>S.db.doc('judges/'+S.tid+'__'+em).set({tid:S.tid,email:em,cats,at:Date.now()}))){$('#jEmail').value='';document.querySelectorAll('#jCats input').forEach(i=>i.checked=false);toast(`${em} can now judge.`);}},
@@ -1894,7 +1921,7 @@ Object.assign(H2,{
     }catch(e){toast('Couldn’t reach the ORK. Nothing was sent.');}
     render();},
 });
-['asOrkSend','asFinalize','asReopen','asDelT','asdel','addJudge','rmJudge','asRec','asLadders'].forEach(a=>WRITE_ACTS.add(a));
+['asOrkSend','asFinalize','asReopen','asDelT','asdel','addJudge','addPaperJudge','rmJudge','asRec','asLadders'].forEach(a=>WRITE_ACTS.add(a));
 
 /* ---------- private feedback link: #feedback-<key> ---------- */
 async function showFeedback(){
