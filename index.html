@@ -770,10 +770,11 @@ function playerHistory(fid,sms){
     divs:Object.entries(sm.divs||{}).filter(([,dv])=>dv.rows&&dv.rows[fid]).map(([dk,dv])=>{const r=dv.rows[fid];
       return {div:dk,k:r.k||0,d:r.d||0,b:r.b||0,pl:r.pl||0,pp:r.pl>=1&&r.pl<=3?PLACE_PTS[r.pl-1]:0,tally:!!dv.tally};})}));
 }
-/* ---------- players: one profile across fighting, Dragonmaster and Battle of the Bards ----------
-   A player is matched by ORK ID, or by persona when there's no ORK ID. Fighting history comes from
-   results summaries; Dragonmaster from entries + asResults (scores show once the event is final or
-   the Crat turned on live scores; judges' feedback is published there without judges' names);
+/* ---------- My record: one profile across fighting, Dragonmaster and Battle of the Bards ----------
+   Opened from the header. Each signed-in person sees their own record, matched by the ORK ID they
+   linked by signing in to the ORK; marshals can also look up any player. Fighting history comes from
+   results summaries; Dragonmaster from entries + asResults (scores once the event is final or live
+   scores are on); judges' feedback from pfb/{eid}, readable only by that ORK ID's owner and marshals;
    Battle of the Bards from bards + bbr. */
 S.dash={on:false,entries:[],asr:{},bards:[],bbr:{}}; S.pkey=S.pkey||null;
 function watchDash(){if(S.dash.on||!S.db) return; S.dash.on=true; const db=S.db, again=()=>{if(S.tab==='players') render();}, warn=e=>console.warn('players',e.code||e);
@@ -799,20 +800,8 @@ function dashPlayers(sms){const P={}, add=(k,name,park,ork)=>{const p=P[k]||(P[k
   S.dash.entries.forEach(e=>{const t=tByid(e.tid); if(!isArts(t)||!inKf(t)) return; add(pKeyOf(e.orkId,e.name),e.name,e.park,e.orkId).arts.add(e.tid);});
   S.dash.bards.forEach(b=>{const t=tByid(b.tid); if(!isBards(t)||!inKf(t)) return; add(pKeyOf(b.orkId,b.name),b.name,b.park,b.orkId).bards++;});
   Object.values(P).forEach(p=>{p.arts=p.arts.size; p.ev=p.combat+p.arts+p.bards;}); return P;}
-function renderPlayers(){
-  watchDash();
-  const root=$('#playerView');
-  if(!$('#pq')) root.innerHTML=`<div class="plgrid"><div class="panel plist"><label class="lbl" for="pq">Find a player</label><input id="pq" type="search" autocomplete="off" placeholder="Persona or park"><ul id="plist"></ul></div><div id="pprofile"></div></div>`;
-  const sms=summaries(), P=dashPlayers(sms);
-  if(S.player&&S.fighters[S.player]&&S.pfid!==S.player){S.pfid=S.player; S.pkey=fighterKey(S.player);}
-  let list=Object.values(P).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
-  if(!S.pkey||!P[S.pkey]) S.pkey=(list.slice().sort((a,b)=>b.ev-a.ev)[0]||{}).key||null;
-  const q=S.pq.trim().toLowerCase(); if(q) list=list.filter(p=>String(p.name).toLowerCase().includes(q)||String(p.park||'').toLowerCase().includes(q));
-  const kinds=p=>[p.combat?`${p.combat} fight${p.combat===1?'':'s'}`:'',p.arts?`${p.arts} A&amp;S`:'',p.bards?`${p.bards} bardic`:''].filter(Boolean).join(' · ')||'No events';
-  $('#plist').innerHTML=list.length?list.slice(0,80).map(p=>`<li><button class="pbtn ${p.key===S.pkey?'on':''}" data-act="pkey" data-k="${esc(p.key)}"><span><b>${esc(p.name)}</b><br><small>${esc(p.park||'')}</small></span><small>${kinds(p)}</small></button></li>`).join('')+(list.length>80?`<li class="foot">Showing 80 of ${list.length}. Search to narrow it down.</li>`:'')
-    :'<li class="none">No players match.</li>';
-  const el=$('#pprofile'), p=P[S.pkey];
-  if(!p){el.innerHTML='<div class="panel"><p class="none">Players show up here once they’ve entered a tournament.</p></div>';return;}
+function renderPlayers(){}
+function profileHtml(p,sms,width,fbFor){
   // fighting
   const hist=p.fids.flatMap(f=>playerHistory(f,sms)).sort((a,b)=>(a.date||'').localeCompare(b.date||'')), m=[0,0,0]; let k=0,pp=0,best=0,bestAt=null;
   const byDiv={}; DIVS.forEach(d=>byDiv[d.k]={ev:0,k:0,b:0,m:[0,0,0],pp:0});
@@ -821,7 +810,7 @@ function renderPlayers(){
   // Dragonmaster
   const myE=S.dash.entries.filter(e=>{const t=tByid(e.tid);return isArts(t)&&inKf(t)&&pKeyOf(e.orkId,e.name)===p.key;});
   const asEv=[...new Set(myE.map(e=>e.tid))].map(tid=>{const t=tByid(tid), show=dashShow(t), st=show?dashStand(tid):null, me=st&&st.list.find(x=>x.key===p.key), R=S.dash.asr[tid]||{};
-    return {t,show,me,of:st?st.of:0,N:asCfg(t).topN,entries:myE.filter(e=>e.tid===tid).map(e=>({e,a:show&&R.avg?R.avg[e.id]:null,fb:show&&R.fb?R.fb[e.id]||[]:[]}))};})
+    return {t,show,me,of:st?st.of:0,N:asCfg(t).topN,entries:myE.filter(e=>e.tid===tid).map(e=>({e,a:show&&R.avg?R.avg[e.id]:null,fb:show?fbFor(e.id):[]}))};})
     .sort((a,b)=>(a.t.date||'').localeCompare(b.t.date||''));
   const allAvg=asEv.flatMap(v=>v.entries.map(x=>x.a&&x.a.n?x.a.a:null)).filter(x=>x!=null), bestEntry=allAvg.length?Math.max(...allAvg):null;
   const asWins=asEv.filter(v=>v.me&&v.me.place===1&&v.t.status==='final').length;
@@ -853,25 +842,25 @@ function renderPlayers(){
       <div class="chartbar"><h3>${metric==='k'?'Pit kills':'Points'} per tournament</h3>
         <div class="controls" style="margin:0"><div class="seg"><button class="${metric==='pts'?'on':''}" data-act="pmetric" data-v="pts">Points</button><button class="${metric==='k'?'on':''}" data-act="pmetric" data-v="k">Pit kills</button></div>
         <select id="pdiv" aria-label="Division"><option value="all">All divisions</option>${DIVS.map(d=>`<option value="${d.k}" ${df===d.k?'selected':''}>${d.n}</option>`).join('')}</select></div></div>
-      ${barChart(items,`${p.name}: ${metric==='k'?'pit kills':'points'} per tournament`,contentWidth(el)-40)}
+      ${barChart(items,`${p.name}: ${metric==='k'?'pit kills':'points'} per tournament`,width)}
       <p class="foot">Points are placement points (1st 5, 2nd 3, 3rd 1) plus pit kills.</p></div>
     <div class="panel"><h3 style="margin-bottom:8px">Fighting by division</h3>${divRows?`<div class="scroll"><table><thead><tr><th>Division</th><th class="n">Events</th><th class="n">Kills</th><th class="n">Best run</th><th>Places</th><th class="n">Points</th></tr></thead><tbody>${divRows}</tbody></table></div>`:'<p class="none">No results yet.</p>'}</div>
     <div class="panel"><h3 style="margin-bottom:8px">Fighting history</h3><div class="scroll"><table><thead><tr><th>Date</th><th>Tournament</th><th>Results</th><th class="n">Points</th></tr></thead><tbody>${evRows}</tbody></table></div></div>`:'';
   // Dragonmaster panel
   const asItems=asEv.filter(v=>v.me&&v.me.counted).map(v=>({v:Math.round(v.me.total*100)/100,label:shortDate(v.t.date),date:v.t.date,tip:`${v.t.name}\n${longDate(v.t.date)}\nScore ${f2(v.me.total)} · ${v.me.place?ordinalN(v.me.place)+' of '+v.of:''}`}));
-  const fbList=l=>l.filter(x=>x.f&&x.f.trim()).map((x,i)=>`<div class="fbq"><span class="muted">Judge ${i+1} · ${f2(x.s)}</span><div class="wu">${esc(x.f)}</div></div>`).join('');
+  const fbList=l=>(l||[]).filter(x=>x.f&&x.f.trim()).map((x,i)=>`<div class="fbq"><span class="muted">Judge ${i+1} · ${f2(x.s)}</span><div class="wu">${esc(x.f)}</div></div>`).join('');
   const asHtml=asEv.length?`<div class="panel"><h2 style="margin-bottom:6px">Dragonmaster</h2>
-      ${asItems.length>1?barChart(asItems,`${p.name}: Dragonmaster score per event`,contentWidth(el)-40):''}
+      ${asItems.length>1?barChart(asItems,`${p.name}: Dragonmaster score per event`,width):''}
       ${asEv.slice().reverse().map(v=>`<div class="asev"><div class="row" style="justify-content:space-between;align-items:baseline"><div><b>${esc(v.t.name)}</b> <span class="muted">· ${esc(longDate(v.t.date))}${v.t.park?' · '+esc(v.t.park):''}</span></div>
           <div>${!v.show?'<span class="rchip">Scores after the event is finalized</span>':v.me&&v.me.counted?`${v.me.place?`<b>${ordinalN(v.me.place)}</b> of ${v.of} · `:''}Score <b>${f2(v.me.total)}</b> · ${v.me.counted} of ${v.N} counted${v.t.status!=='final'?' <span class="rchip">Live</span>':''}`:'<span class="muted">Not scored yet</span>'}</div></div>
         ${v.entries.map(x=>`<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(x.e.title)}</b> <span class="rchip">${esc(SUB[x.e.sub]?.n||x.e.sub)}</span></div>
           <span class="scorepill ${x.a&&x.a.n?'done':''}">${x.a&&x.a.n?f2(x.a.a):v.show?'Not scored':'—'}</span></div>
           ${x.a&&x.a.n?`<div class="meta">${x.a.n} judge${x.a.n===1?'':'s'}${x.a.trim?' · highest and lowest dropped':''}</div>`:''}
           ${fbList(x.fb)?`<details><summary class="muted" style="cursor:pointer">Judges’ feedback</summary>${fbList(x.fb)}</details>`:''}</div>`).join('')}</div>`).join('')}
-      <p class="foot">Judges’ names are never shown. Scores appear once the event is finalized, or sooner when the A&amp;S Crat shows live scores.</p></div>`:'';
+      <p class="foot">Judges’ names are never shown. Scores appear once the event is finalized, or sooner when the A&amp;S Crat shows live scores. Feedback is visible only to you and the marshals.</p></div>`:'';
   const bbHtml=bbEv.length?`<div class="panel"><h2 style="margin-bottom:8px">Battle of the Bards</h2><div class="scroll"><table><thead><tr><th>Date</th><th>Event</th><th class="n">Match wins</th><th>Result</th><th>Judges’ Choice</th></tr></thead><tbody>
       ${bbEv.slice().reverse().map(v=>`<tr><td class="num" style="white-space:nowrap">${esc(longDate(v.t.date))}</td><td>${esc(v.t.name)}<small class="muted" style="display:block">${esc(v.t.park||'')}</small></td><td class="n">${v.wins}</td><td>${v.res}</td><td>${v.jc.length?esc(v.jc.join(', ')):'<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div></div>`:'';
-  el.innerHTML=`<div class="stack"><div class="panel">
+  return `<div class="stack"><div class="panel">
       <h2>${esc(p.name)}</h2>
       <p class="muted" style="margin:6px 0 0">${esc(p.park||'Park not set')}${o?' · '+orkLink(o):''}${orders.length?' · '+esc(orders.join(' · ')):''}</p>
       <div class="tiles">${tiles.join('')}</div></div>
@@ -1169,7 +1158,9 @@ const H={
   reopenT:async()=>{const t=T(); if(!t||!arm('reopenT:'+t.id))return;
     if(await w(()=>S.db.doc('tournaments/'+t.id).update({status:'open'}))) toast(`${t.name} is open for changes again.`);},
   pkey:ds=>{S.pkey=ds.k;S.tab='players';render();window.scrollTo({top:0});},
-  player:ds=>{S.player=ds.f;S.pfid=ds.f;S.pkey=fighterKey(ds.f);S.tab='players';saveLocal();render();window.scrollTo({top:0});},
+  player:ds=>{const k=fighterKey(ds.f), mine=S.me&&S.me.doc&&S.me.doc.orkId&&k==='o'+S.me.doc.orkId;
+    if(mine){S.view='me';S.lookup=null;} else if(S.mdoc){S.view='me';S.lookup=k;} else {toast('Player records are private. Sign in and open My record to see your own.');return;}
+    render();window.scrollTo({top:0});},
   park:ds=>{S.park=ds.p;render();},
   pmetric:ds=>{S.pmetric=ds.v;render();},
   rec:ds=>{const id=S.tid+'__'+ds.f, cur=S.recs[id]?.status; const next=cur===ds.v?null:ds.v;
@@ -1305,11 +1296,12 @@ const permMsg=()=>!S.user?'Sign in as a marshal to change the lists.':!S.mdoc?'Y
 const kNames=ks=>ks.includes('*')?'All kingdoms':ks.map(k=>KINGDOMS[k]?KINGDOMS[k].n.replace('Kingdom of ',''):k).join(', ');
 function renderAuth(){
   document.body.classList.toggle('anymarshal',!!S.mdoc);const el=$('#auth'); if(!el) return; if(!S.auth){el.innerHTML='';return;}
-  if(!S.user){el.innerHTML='<button class="btn ghost" data-act="signin">Sign in</button>';return;}
+  const myBtn=`<button class="btn sm ${S.view==='me'?'':'ghost'}" data-act="me">My record</button>`;
+  if(!S.user){el.innerHTML=myBtn+'<button class="btn ghost" data-act="signin">Sign in</button>';return;}
   const em=esc(S.user.email||'');
   const judge=!S.isMarshal&&((S.as&&S.as.myJudge)||(S.bb&&S.bb.myJudge));
-  el.innerHTML=`<span>${S.isMarshal?'<b>Marshal</b> · ':S.mdoc?`<b>Marshal</b> (${esc(kNames(myKs()))}) · `:judge?'<b>Judge</b> · ':''}${em}</span><button class="btn sm ghost" data-act="signout">Sign out</button>`
-    +(kBad()?`<span style="flex-basis:100%;color:var(--danger,#b3261e)">${esc(kBad())}</span>`:'')+(S.mdoc||judge||(T()&&T().kind==='bards')?'':`<span style="flex-basis:100%">Not on the marshal or judge list. Ask a marshal to add ${em}.</span>`);}
+  el.innerHTML=myBtn+`<span>${S.isMarshal?'<b>Marshal</b> · ':S.mdoc?`<b>Marshal</b> (${esc(kNames(myKs()))}) · `:judge?'<b>Judge</b> · ':''}${em}</span><button class="btn sm ghost" data-act="signout">Sign out</button>`
+    +(kBad()?`<span style="flex-basis:100%;color:var(--danger,#b3261e)">${esc(kBad())}</span>`:'');}
 
 /* Hide or disable editing controls for non-marshals. Marks what it changed so signing in restores it,
    including the header's static "New tournament" button. */
@@ -1701,12 +1693,24 @@ let asPubT=null;
 const stab=o=>JSON.stringify(o,(k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a<b?-1:a>b?1:0)):v);
 function maybePublishResults(){
   if(!S.as.scoresReadable||!S.db) return; const t=T(); if(!t) return;
-  const avg=asAverages(), show=t.status==='final'||!!asCfg(t).live, fb={};
-  if(show) Object.values(S.as.scores).forEach(sc=>{(fb[sc.eid]||(fb[sc.eid]=[])).push({s:Number(sc.score)||0,f:String(sc.feedback||'').slice(0,5000)});});
-  Object.values(fb).forEach(l=>l.sort((a,b)=>b.s-a.s||(a.f<b.f?-1:a.f>b.f?1:0)));
-  const R=S.as.results||{}; if(stab(R.avg||{})===stab(avg)&&stab(R.fb||{})===stab(fb)) return;
-  clearTimeout(asPubT); const tid=S.tid; asPubT=setTimeout(()=>{S.db.doc('asResults/'+tid).set({avg,fb,updatedAt:Date.now()}).catch(e=>console.warn('asResults',e));},1200);
+  const avg=asAverages(), show=t.status==='final'||!!asCfg(t).live;
+  publishPfb(show,t);
+  const R=S.as.results||{}; if(stab(R.avg||{})===stab(avg)&&!R.fb) return;
+  clearTimeout(asPubT); const tid=S.tid; asPubT=setTimeout(()=>{S.db.doc('asResults/'+tid).set({avg,updatedAt:Date.now()}).catch(e=>console.warn('asResults',e));},1200);
 }
+/* Judges' scores and feedback per entry, without judge names, for the entrant's My record.
+   pfb/{eid} {tid,eid,orkId,list:[{s,f}]} — readable only by whoever linked that ORK ID, and marshals.
+   Written once the event is final or live scores are on; removed again if live scores are turned off. */
+function publishPfb(show,t){if(!S.isMarshal&&!S.as.myJudge) return; const tid=t.id, docs={};
+  if(show) S.as.entries.forEach(e=>{if(!e.orkId) return;
+    const l=Object.values(S.as.scores).filter(sc=>sc.eid===e.id).map(sc=>({s:Number(sc.score)||0,f:String(sc.feedback||'').slice(0,5000)})).sort((a,b)=>b.s-a.s||(a.f<b.f?-1:a.f>b.f?1:0));
+    if(l.length) docs[e.id]={tid,eid:e.id,orkId:String(e.orkId),list:l};});
+  const sig=stab(docs); S.as.pfbSig=S.as.pfbSig||{}; if(S.as.pfbSig[tid]===sig) return; S.as.pfbSig[tid]=sig;
+  clearTimeout(S.as.pfbT); S.as.pfbT=setTimeout(async()=>{try{
+      let old=[]; if(S.isMarshal){const q=await S.db.collection('pfb').where('tid','==',tid).get(); old=q.docs.map(d=>d.id);}
+      const ops=[...Object.entries(docs).map(([id,d])=>b=>b.set(S.db.doc('pfb/'+id),d)),...old.filter(id=>!docs[id]).map(id=>b=>b.delete(S.db.doc('pfb/'+id)))];
+      for(let i=0;i<ops.length;i+=400){const b=S.db.batch(); ops.slice(i,i+400).forEach(f=>f(b)); await b.commit();}
+    }catch(e){console.warn('pfb',e.code||e); delete S.as.pfbSig[tid];}},1500);}
 function asStandings(avg){
   const N=asCfg(T()).topN, P={};
   S.as.entries.forEach(e=>{const a=avg[e.id], k=playerKey(e); const p=P[k]||(P[k]={key:k,name:e.name,park:e.park,orkId:e.orkId,subs:{},entries:0});
@@ -1768,7 +1772,7 @@ function renderEntries(){
         <div class="field"><label for="aeWriteup">Documentation writeup</label><textarea id="aeWriteup" rows="8" maxlength="20000" required placeholder="What you made, how you made it, materials, sources and what you learned."></textarea></div>
         <div class="field"><label for="aeLinks">Links to photos or documents (optional, one per line, up to 5)</label><textarea id="aeLinks" rows="3" placeholder="https://drive.google.com/…"></textarea></div>
         <div class="row"><button class="btn" type="submit">Submit entry</button></div>
-        <p class="foot" style="margin:0">After you submit, you get a private link to your judges’ scores and feedback. They appear once the A&amp;S Crat finalizes the event, and also on your Players profile, without judges’ names.</p>
+        <p class="foot" style="margin:0">After you submit, you get a private link to your judges’ scores and feedback. They appear once the A&amp;S Crat finalizes the event, and also under My record (only you and the marshals can see it) once you link your ORK profile.</p>
       </form><div id="aeDone" hidden></div></div>`
       :`<div class="panel"><h2>Entries are closed</h2><p class="muted" style="margin:0">${t.status==='final'?'This event is finalized. See the Scores tab for results.':'The A&S Crat has closed entries for this event.'}</p></div>`;}
   const byCat=AS_CATS.map(cat=>({cat,list:S.as.entries.filter(e=>SUB[e.sub]?.cat===cat.k)})).filter(x=>x.list.length);
@@ -2401,20 +2405,90 @@ Object.assign(H2,{
 })();
 
 
-/* Players is shared by every event type: move its tab button to the end and let fighting,
-   Dragonmaster and Battle of the Bards events all open it. */
-(function(){const pb=document.querySelector('#tabs [data-tab="players"]'); if(pb){pb.classList.remove('cb-tab'); $('#tabs').appendChild(pb);}
-  const st=document.createElement('style'); st.textContent='.asev{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.asev:first-of-type{border-top:0}.fbq{margin:8px 0;padding:8px 10px;border-left:3px solid var(--line);background:var(--panel2);border-radius:6px}.fbq .wu{margin-top:4px;white-space:pre-wrap}';
+
+/* ---------- My record (header button) ----------
+   users/{uid} {orkId, email, via:'ork', at} + orkClaims/{orkId} {uid, at}, created together after the
+   person signs in to the ORK (Authorization/Authorize returns their own UserId = ORK ID). One Google
+   account per ORK ID; a marshal can release a link. */
+S.view=null; S.me={uid:null,doc:null,loaded:false,un:null,fbOrk:null,fb:{},unFb:null}; S.lookup=null; S.lq='';
+function watchMe(){const uid=S.user&&S.user.uid||null; if(S.me.uid===uid) return;
+  if(S.me.un){S.me.un();} if(S.me.unFb){S.me.unFb();}
+  S.me={uid,doc:null,loaded:!uid,un:null,fbOrk:null,fb:{},unFb:null};
+  if(uid&&S.db) S.me.un=S.db.doc('users/'+uid).onSnapshot(s=>{S.me.doc=s.exists?s.data():null;S.me.loaded=true;render();},e=>{console.warn('users',e.code||e);S.me.loaded=true;render();});}
+function watchFb(ork){if(S.me.fbOrk===ork) return; if(S.me.unFb){S.me.unFb();S.me.unFb=null;} S.me.fbOrk=ork; S.me.fb={};
+  if(ork&&S.db) S.me.unFb=S.db.collection('pfb').where('orkId','==',String(ork)).onSnapshot(s=>{S.me.fb=Object.fromEntries(s.docs.map(d=>[d.id,d.data().list||[]]));if(S.view==='me')render();},e=>console.warn('pfb',e.code||e));}
+const meSet=(el,html,key)=>{if(el&&el.dataset.sig!==key){el.dataset.sig=key;el.innerHTML=html;}};
+function allKingdoms(fn){const kf=S.kf; S.kf='all'; try{return fn();}finally{S.kf=kf;}}
+function renderMe(){watchDash();
+  const el=$('#meView'); if(!$('#meHead')) el.innerHTML=`<div id="meHead"></div><div id="meLink"></div><div id="meLook"></div><div id="meBody"></div>`;
+  const look=S.isMarshal||!!S.mdoc;
+  meSet($('#meHead'),`<div class="row" style="justify-content:space-between;align-items:center;margin:16px 0 12px"><h2 style="margin:0">${S.lookup?'Player record':'My record'}</h2>
+    <div class="row" style="gap:8px">${S.lookup?'<button class="btn ghost" data-act="melook" data-k="">Back to my record</button>':''}<button class="btn ghost" data-act="meback">Back to events</button></div></div>`,'h'+!!S.lookup);
+  // marshal lookup
+  if(look){if(!$('#mlq')) $('#meLook').innerHTML=`<div class="panel m-only" style="margin-bottom:16px"><label class="lbl" for="mlq">Marshals: look up a player</label><input id="mlq" type="search" autocomplete="off" placeholder="Persona, park or ORK ID"><ul id="mlist" class="mlist"></ul>
+      <div class="row" style="margin-top:10px;align-items:flex-end"><div class="field" style="max-width:240px"><label for="relOrk">Release an ORK link (ORK ID)</label><input id="relOrk" inputmode="numeric" autocomplete="off"></div><button class="btn sm ghost" data-act="relork">Release link</button></div></div>`;
+    const q=S.lq.trim().toLowerCase(); let html='';
+    if(q.length>=2){const P=allKingdoms(()=>dashPlayers(summaries())); const hits=Object.values(P).filter(p=>String(p.name).toLowerCase().includes(q)||String(p.park||'').toLowerCase().includes(q)||(p.ork&&String(p.ork)===q)).sort((a,b)=>b.ev-a.ev).slice(0,12);
+      html=hits.length?hits.map(p=>`<li><button class="linkish" data-act="melook" data-k="${esc(p.key)}"><b>${esc(p.name)}</b></button> <small class="muted">${esc(p.park||'')}${p.ork?' · ORK #'+esc(p.ork):''} · ${p.ev} event${p.ev===1?'':'s'}</small></li>`).join(''):'<li class="none">No players match.</li>';}
+    if($('#mlist').innerHTML!==html) $('#mlist').innerHTML=html;}
+  else $('#meLook').innerHTML='';
+  const body=$('#meBody'), link=$('#meLink');
+  if(S.lookup){meSet(link,'','none'); const P=allKingdoms(()=>dashPlayers(summaries())), p=P[S.lookup]; watchFb(p&&p.ork||null);
+    body.innerHTML=p?allKingdoms(()=>profileHtml(p,summaries(),contentWidth(body)-40,eid=>S.me.fb[eid]||[])):'<div class="panel"><p class="none">That player has no results.</p></div>'; return;}
+  if(!S.user){meSet(link,`<div class="panel"><p style="margin:0 0 10px">Sign in with Google to see your own tournament record: your fighting results, Dragonmaster entries with judges’ feedback, and Battle of the Bards results.</p><button class="btn" data-act="signin">Sign in</button></div>`,'signin'); body.innerHTML=''; return;}
+  if(!S.me.loaded){meSet(link,'<div class="panel"><p class="none" style="margin:0">Loading…</p></div>','load'); body.innerHTML=''; return;}
+  const ork=S.me.doc&&S.me.doc.orkId;
+  if(!ork){meSet(link,`<div class="panel"><h3 style="margin:0 0 4px">Link your ORK profile</h3>
+      <p class="foot" style="margin:0 0 10px">Sign in with your ORK username and password once to prove which ORK profile is yours. Your password goes to the ORK and isn’t saved. After that, signing in here with ${esc(S.user.email||'this Google account')} shows your record.</p>
+      <form id="meLinkForm" class="row"><div class="field"><label for="meUser">ORK username</label><input id="meUser" autocomplete="username" required></div>
+        <div class="field"><label for="mePass">ORK password</label><input id="mePass" type="password" autocomplete="current-password" required></div>
+        <button class="btn" type="submit">Link my ORK profile</button></form><p id="meMsg" class="foot" role="status" style="margin:6px 0 0"></p></div>`,'link'); body.innerHTML=''; return;}
+  watchFb(ork);
+  meSet(link,`<p class="foot" style="margin:0 0 10px">Linked to ${orkLink(ork)} · ${esc(S.user.email||'')} · <button class="linkish ${S.confirm==='meun'?'armed':''}" data-act="meunlink">${S.confirm==='meun'?'Tap again to unlink':'Unlink'}</button></p>`,'linked'+ork+S.confirm);
+  const P=allKingdoms(()=>dashPlayers(summaries())), p=P['o'+ork];
+  body.innerHTML=p?allKingdoms(()=>profileHtml(p,summaries(),contentWidth(body)-40,eid=>S.me.fb[eid]||[]))
+    :`<div class="panel"><p class="none" style="margin:0">No tournament results under ORK #${esc(ork)} yet. Results show here when your entries or signups carry your ORK ID; if an entry is missing it, ask a marshal to add it.</p></div>`;
+}
+document.addEventListener('input',e=>{if(e.target.id==='mlq'){S.lq=e.target.value;renderMe();}});
+document.addEventListener('submit',async e=>{if(e.target.id!=='meLinkForm')return; e.preventDefault();
+  const u=$('#meUser').value.trim(), pw=$('#mePass').value, msg=t=>{const m=$('#meMsg'); if(m) m.textContent=t;}; if(!u||!pw||!S.user) return; msg('Checking with the ORK…');
+  let id='';
+  try{const d=await orkPost({call:'Authorization/Authorize','request[UserName]':u,'request[Password]':pw,'request[Client]':'Field Marshal'});
+    $('#mePass').value=''; const st=orkStat(d);
+    if(st.code!==0||!d.Token){msg(plain(st.msg)||'The ORK didn’t accept that username and password.');return;}
+    id=String(d.UserId||''); try{await orkPost({call:'Authorization/DestroySession','request[Token]':String(d.Token)});}catch(x){}
+    if(!/^\d+$/.test(id)){msg('The ORK signed you in but didn’t say which profile is yours. Ask a marshal for help.');return;}
+  }catch(err){console.error(err);msg('Couldn’t reach the ORK. Try again in a moment.');return;}
+  try{const b=S.db.batch(), now=Date.now();
+    b.set(S.db.doc('orkClaims/'+id),{uid:S.user.uid,at:now}); b.set(S.db.doc('users/'+S.user.uid),{orkId:id,email:(S.user.email||'').toLowerCase(),via:'ork',at:now}); await b.commit();
+    toast(`Linked to ORK #${id}.`);}
+  catch(err){console.error(err);msg(err.code==='permission-denied'?`ORK #${id} is already linked to another Google account. Ask a marshal to release it.`:'Couldn’t save the link. Try again.');}
+});
+Object.assign(H2,{
+  relork:async()=>{const id=parseOrk($('#relOrk').value); if(!id){toast('Enter an ORK ID or profile link.');return;} if(!arm('rel:'+id)){toast(`Tap Release link again to release ORK #${id}.`);return;} try{await releaseOrk(id); $('#relOrk').value='';}catch(e){console.error(e);toast('Couldn’t release it. Publish the latest firestore.rules.');}},
+  me:()=>{S.view='me';S.lookup=null;render();window.scrollTo({top:0});},
+  meback:()=>{S.view=null;S.lookup=null;render();window.scrollTo({top:0});},
+  melook:ds=>{S.lookup=ds.k||null;S.view='me';render();window.scrollTo({top:0});},
+  meunlink:async()=>{const ork=S.me.doc&&S.me.doc.orkId; if(!ork||!arm('meun'))return;
+    try{const b=S.db.batch(); b.delete(S.db.doc('orkClaims/'+ork)); b.delete(S.db.doc('users/'+S.user.uid)); await b.commit(); toast('Unlinked your ORK profile.');}catch(e){console.error(e);toast('Couldn’t unlink. Try again.');}},
+});
+/* Marshal-only: release an ORK link someone else claimed. */
+async function releaseOrk(id){const c=await S.db.doc('orkClaims/'+id).get(); if(!c.exists){toast(`ORK #${id} isn’t linked to anyone.`);return;}
+  const b=S.db.batch(); b.delete(S.db.doc('orkClaims/'+id)); const uid=c.data().uid; if(uid) b.delete(S.db.doc('users/'+uid)); await b.commit(); toast(`Released ORK #${id}. Its owner can link it now.`);}
+
+/* The old Players tab is replaced by My record in the header. */
+(function(){const pb=document.querySelector('#tabs [data-tab="players"]'); if(pb) pb.remove();
+  const mv=document.createElement('section'); mv.id='meView'; mv.hidden=true; $('#tabs').after(mv);
+  const st=document.createElement('style'); st.textContent='.asev{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.asev:first-of-type{border-top:0}.fbq{margin:8px 0;padding:8px 10px;border-left:3px solid var(--line);background:var(--panel2);border-radius:6px}.fbq .wu{margin-top:4px;white-space:pre-wrap}#meView .mlist li{padding:6px 0}';
   document.head.appendChild(st);})();
 const kindRender=render;
 render=function(){
   if(S.fbMode) return;
-  const t=T();
-  if(S.tab!=='players'||!t||!(isArts(t)||isBards(t))){kindRender();return;}
-  S.tab=null; kindRender(); S.tab='players';
-  document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=x.id!=='tab-players');
-  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab==='players'));
-  renderPlayers(); gate();
+  if(S.tab==='players'){const t=T(); S.tab=isArts(t)?'entries':isBards(t)?'bbenter':'signups';}
+  kindRender(); watchMe();
+  const on=S.view==='me'; $('#meView').hidden=!on; $('#tmeta').hidden=on;
+  if(on){$('#tabs').hidden=true; $('#empty').hidden=true; document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=true); renderMe();}
+  renderAuth(); gate();
 };
 </script>
 </body>

@@ -173,6 +173,36 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isMarshalOfT(tid) || isJudge(tid);
     }
+    // My record: a Google account linked to one ORK ID (after the person signs in to the ORK).
+    // users/{uid} and orkClaims/{orkId} are created together; one account per ORK ID.
+    function myOrk() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orkId; }
+    match /users/{uid} {
+      allow get: if (request.auth != null && request.auth.uid == uid) || isMarshal();
+      allow list: if isMarshal();
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['orkId', 'email', 'via', 'at'])
+        && request.resource.data.orkId is string && request.resource.data.orkId.matches('^[0-9]{1,12}$')
+        && getAfter(/databases/$(database)/documents/orkClaims/$(request.resource.data.orkId)).data.uid == uid;
+      allow update: if false;
+      allow delete: if (request.auth != null && request.auth.uid == uid) || isMarshal();
+    }
+    match /orkClaims/{ork} {
+      allow get: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.orkId == ork;
+      allow update: if false;
+      allow delete: if isMarshal() || (request.auth != null && resource.data.uid == request.auth.uid);
+    }
+    // Judges' scores and feedback for one entry (no judge names), for that ORK ID's owner and marshals.
+    match /pfb/{eid} {
+      allow read: if isMarshal()
+        || (request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && resource.data.orkId == myOrk());
+      allow create, update: if isMarshalOfT(request.resource.data.tid) || isJudge(request.resource.data.tid);
+      allow delete: if isMarshalOfT(resource.data.tid) || isJudge(resource.data.tid);
+    }
     // Published at finalize. Readable only by someone holding the unguessable link.
     match /feedback/{key} {
       allow get: if true;
