@@ -163,7 +163,10 @@ service cloud.firestore {
     match /scores/{id} {
       allow read: if isMarshal() || isJudge(resource.data.tid);
       allow create, update: if validScore(id, request.resource.data) || validProxyScore(id, request.resource.data);
-      allow delete: if isMarshalOfT(resource.data.tid);
+      // A marshal can remove any score; a judge can remove their own until the event is finalized.
+      allow delete: if isMarshalOfT(resource.data.tid)
+        || (isJudge(resource.data.tid) && resource.data.judge == myEmail()
+            && get(/databases/$(database)/documents/tournaments/$(resource.data.tid)).data.get('status', 'open') != 'final');
     }
     // Public judged averages (no individual scores).
     match /asResults/{tid} {

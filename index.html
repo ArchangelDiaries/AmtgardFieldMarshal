@@ -1774,7 +1774,8 @@ function judgeCards(j,mode){const t=T(), c=asCfg(t), final=t.status==='final', j
         ${(e.links||[]).map(l=>`<div><a class="orkl" href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length>70?l.slice(0,67)+'…':l)}</a></div>`).join('')}</details>`}
       <div class="jrow"><div class="field" style="flex:0 0 auto"><label for="${pre}js-${esc(e.id)}">Score (${c.min}–${c.max})</label><input id="${pre}js-${esc(e.id)}" data-js="${esc(e.id)}" data-jm="${mode}" type="number" inputmode="decimal" min="${c.min}" max="${c.max}" step="0.01" value="${esc(sv)}" ${final?'disabled':''}></div>
         <div class="field" style="flex:1 1 280px"><label for="${pre}jf-${esc(e.id)}">Feedback for the entrant${mode?' (optional)':''}</label><textarea id="${pre}jf-${esc(e.id)}" data-jf="${esc(e.id)}" data-jm="${mode}" rows="${mode?2:3}" maxlength="5000" ${final?'disabled':''}>${esc(fb)}</textarea></div>
-        <button class="btn" data-act="jsave" data-e="${esc(e.id)}" data-jm="${mode}" ${final?'disabled':''}>${saved?'Update':'Save score'}</button></div></div>`;}).join('');
+        <button class="btn" data-act="jsave" data-e="${esc(e.id)}" data-jm="${mode}" ${final?'disabled':''}>${saved?'Update':'Save score'}</button>
+        ${saved&&!final?(()=>{const k='jdel:'+e.id+'__'+jk;return `<button class="btn ghost danger ${S.confirm===k?'armed':''}" data-act="jdel" data-e="${esc(e.id)}" data-jm="${mode}">${S.confirm===k?'Tap again to remove':'Remove score'}</button>`;})():''}</div></div>`;}).join('');
   return (mode?`<p class="foot" style="margin:10px 0 6px">${esc(jName(j))}: ${judgeDone(j)} of ${mine.length} scored.</p>`:'')+(cards||'<p class="none">No entries in this judge’s categories yet.</p>');
 }
 const draftsFor=m=>m?((S.as.pdraft||(S.as.pdraft={}))[jKey(S.as.judges.find(x=>x.id===S.as.proxyJ)||{})]||(S.as.pdraft[jKey(S.as.judges.find(x=>x.id===S.as.proxyJ)||{})]={})):S.as.draft;
@@ -1871,6 +1872,10 @@ Object.assign(H2,{
     if(m) data.by=myEmail();
     try{await S.db.doc('scores/'+e.id+'__'+jk).set(data); delete draftsFor(m)[e.id]; toast(`Saved ${f2(v)} for ${e.title}${m?' from '+jName(j):''}.`);}
     catch(err){console.error(err);toast(err.code==='permission-denied'?(m?'Couldn’t save for that judge. Publish the latest firestore.rules, and check the event isn’t finalized.':'You’re not on this event’s judge list, or scoring is locked.'):'Couldn’t save. Try again.');}},
+  jdel:async ds=>{const m=ds.jm||'', e=S.as.entries.find(x=>x.id===ds.e), j=m?S.as.judges.find(x=>x.id===S.as.proxyJ):S.as.myJudge; if(!e||!j) return;
+    const jk=jKey(j); if(!arm('jdel:'+e.id+'__'+jk)) return;
+    try{await S.db.doc('scores/'+e.id+'__'+jk).delete(); delete draftsFor(m)[e.id]; S.as.last={}; render(); toast(`Removed ${m?jName(j)+'’s':'your'} score for ${e.title}.`);}
+    catch(err){console.error(err);toast(err.code==='permission-denied'?'Couldn’t remove it. Publish the latest firestore.rules, and check the event isn’t finalized.':'Couldn’t remove. Try again.');}},
   addPaperJudge:async()=>{const n=$('#jPaper').value.trim().replace(/\s+/g,' '); if(!n){toast('Type the judge’s persona.');return;}
     let slug='paper-'+(n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'judge'), k=slug, i=2;
     while(S.as.judges.some(x=>jKey(x)===k)) k=slug+'-'+(i++);
