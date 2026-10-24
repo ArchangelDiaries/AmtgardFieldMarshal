@@ -1738,9 +1738,12 @@ function renderJudging(){
           <p class="foot" style="margin:0">Judges sign in with Marshal sign-in using that Google account. They see only this event’s Judging tab and never each other’s scores.</p></div>
         <div id="asProgress" style="margin-top:14px"></div></div>`;}
     const jl=S.as.judges.slice().sort((a,b)=>jName(a).localeCompare(jName(b)));
-    setHtml($('#asJudgeList'),jl.length?`<ul class="mlist">${jl.map(j=>{const k='rmJ:'+j.id,n=Object.values(S.as.scores).filter(s=>s.judge===jKey(j)).length;
+    setHtml($('#asJudgeList'),(jl.length?`<ul class="mlist">${jl.map(j=>{const k='rmJ:'+j.id,n=Object.values(S.as.scores).filter(s=>s.judge===jKey(j)).length;
       return `<li><span>${esc(jName(j))}${j.paper?' <span class="rchip">scores entered by a marshal</span>':''} <small class="muted">· ${j.cats&&j.cats.length?j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', '):'All categories'} · ${n} scored</small></span>
-        <button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="rmJudge" data-j="${esc(j.id)}">${S.confirm===k?'Tap again to remove':'Remove'}</button></li>`;}).join('')}</ul>`:'<p class="none">No judges yet.</p>','jlist');
+        <button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="rmJudge" data-j="${esc(j.id)}">${S.confirm===k?(n?`Tap again to remove with ${n} score${n===1?'':'s'}`:'Tap again to remove'):'Remove'}</button></li>`;}).join('')}</ul>`:'<p class="none">No judges yet.</p>')
+      +(()=>{const keys=new Set(S.as.judges.map(jKey)), orph=Object.values(S.as.scores).filter(x=>!keys.has(x.judge)), who=[...new Set(orph.map(x=>x.judge))];
+        return orph.length?`<div class="banner" style="margin-top:10px"><span><b>${orph.length} score${orph.length===1?'':'s'}</b> still count${orph.length===1?'s':''} from judge${who.length===1?'':'s'} no longer on the list (${esc(who.map(x=>x.startsWith('paper-')?x.slice(6).replace(/-/g,' '):x).join(', '))}).</span>
+          <button class="btn sm danger ${S.confirm==='rmO:'+S.tid?'armed':''}" data-act="rmOrphans">${S.confirm==='rmO:'+S.tid?'Tap again to delete them':'Delete those scores'}</button></div>`:'';})(),'jlist');
     const avg=asAverages();
     setHtml($('#asProgress'),S.as.entries.length?`<h3 style="margin-bottom:6px">Scoring progress</h3><div class="scroll"><table><thead><tr><th>Entry</th><th>Category</th><th class="n">Judges</th><th class="n">Average</th></tr></thead><tbody>
       ${S.as.entries.map(e=>{const elig=S.as.judges.filter(j=>judgeCanScore(j,e)).length, a=avg[e.id];
@@ -1885,7 +1888,17 @@ Object.assign(H2,{
   addJudge:async()=>{const em=$('#jEmail').value.trim().toLowerCase(); if(!/^[^@\s/]+@[^@\s/]+\.[^@\s/]+$/.test(em)){toast('Enter a full email address.');return;}
     const cats=[...document.querySelectorAll('#jCats input:checked')].map(i=>i.value);
     if(await w(()=>S.db.doc('judges/'+S.tid+'__'+em).set({tid:S.tid,email:em,cats,at:Date.now()}))){$('#jEmail').value='';document.querySelectorAll('#jCats input').forEach(i=>i.checked=false);toast(`${em} can now judge.`);}},
-  rmJudge:ds=>{if(!arm('rmJ:'+ds.j))return; w(()=>S.db.doc('judges/'+ds.j).delete());},
+  /* Removing a judge also deletes every score they gave in this event, so averages drop them too. */
+  rmJudge:async ds=>{const j=S.as.judges.find(x=>x.id===ds.j); if(!j) return;
+    if(T()?.status==='final'){toast('This event is finalized. Reopen it before removing a judge.');return;}
+    if(!arm('rmJ:'+ds.j))return; const jk=jKey(j), ids=Object.keys(S.as.scores).filter(k=>S.as.scores[k].judge===jk);
+    if(await w(async()=>{const b=S.db.batch(); ids.forEach(id=>b.delete(S.db.doc('scores/'+id))); b.delete(S.db.doc('judges/'+ds.j)); await b.commit();})){
+      if(S.as.proxyJ===ds.j) S.as.proxyJ=null; S.as.last={}; render(); toast(`Removed ${jName(j)} and ${ids.length} score${ids.length===1?'':'s'}.`);}},
+  /* Scores left behind by judges removed before this fix. */
+  rmOrphans:async()=>{if(T()?.status==='final'){toast('This event is finalized. Reopen it first.');return;}
+    const keys=new Set(S.as.judges.map(jKey)), ids=Object.keys(S.as.scores).filter(k=>!keys.has(S.as.scores[k].judge)); if(!ids.length) return;
+    if(!arm('rmO:'+S.tid))return;
+    if(await w(async()=>{const b=S.db.batch(); ids.forEach(id=>b.delete(S.db.doc('scores/'+id))); await b.commit();})){S.as.last={}; render(); toast(`Removed ${ids.length} leftover score${ids.length===1?'':'s'}.`);}},
   asdel:async ds=>{if(!arm('asdel:'+ds.e))return; const ids=Object.keys(S.as.scores).filter(k=>S.as.scores[k].eid===ds.e);
     for(const id of ids) await w(()=>S.db.doc('scores/'+id).delete());
     await w(()=>S.db.doc('entrykeys/'+ds.e).delete()); await w(()=>S.db.doc('entries/'+ds.e).delete()); toast('Entry withdrawn.');},
@@ -1926,7 +1939,7 @@ Object.assign(H2,{
     }catch(e){toast('Couldn’t reach the ORK. Nothing was sent.');}
     render();},
 });
-['asOrkSend','asFinalize','asReopen','asDelT','asdel','addJudge','addPaperJudge','rmJudge','asRec','asLadders'].forEach(a=>WRITE_ACTS.add(a));
+['asOrkSend','asFinalize','asReopen','asDelT','asdel','addJudge','addPaperJudge','rmOrphans','rmJudge','asRec','asLadders'].forEach(a=>WRITE_ACTS.add(a));
 
 /* ---------- private feedback link: #feedback-<key> ---------- */
 async function showFeedback(){
