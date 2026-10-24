@@ -770,42 +770,112 @@ function playerHistory(fid,sms){
     divs:Object.entries(sm.divs||{}).filter(([,dv])=>dv.rows&&dv.rows[fid]).map(([dk,dv])=>{const r=dv.rows[fid];
       return {div:dk,k:r.k||0,d:r.d||0,b:r.b||0,pl:r.pl||0,pp:r.pl>=1&&r.pl<=3?PLACE_PTS[r.pl-1]:0,tally:!!dv.tally};})}));
 }
+/* ---------- players: one profile across fighting, Dragonmaster and Battle of the Bards ----------
+   A player is matched by ORK ID, or by persona when there's no ORK ID. Fighting history comes from
+   results summaries; Dragonmaster from entries + asResults (scores show once the event is final or
+   the Crat turned on live scores; judges' feedback is published there without judges' names);
+   Battle of the Bards from bards + bbr. */
+S.dash={on:false,entries:[],asr:{},bards:[],bbr:{}}; S.pkey=S.pkey||null;
+function watchDash(){if(S.dash.on||!S.db) return; S.dash.on=true; const db=S.db, again=()=>{if(S.tab==='players') render();}, warn=e=>console.warn('players',e.code||e);
+  db.collection('entries').onSnapshot(s=>{S.dash.entries=s.docs.map(d=>({id:d.id,...d.data()}));again();},warn);
+  db.collection('asResults').onSnapshot(s=>{S.dash.asr=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));again();},warn);
+  db.collection('bards').onSnapshot(s=>{S.dash.bards=s.docs.map(d=>({id:d.id,...d.data()}));again();},warn);
+  db.collection('bbr').onSnapshot(s=>{S.dash.bbr=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));again();},warn);}
+const nkey=n=>String(n||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-');
+const pKeyOf=(ork,name)=>ork?'o'+ork:'n'+nkey(name);
+const fighterKey=fid=>pKeyOf(fork(fid),fname(fid));
+const dashShow=t=>!!t&&(t.status==='final'||!!(t.as&&t.as.live));
+function dashStand(tid){const t=tByid(tid), N=asCfg(t).topN, avg=(S.dash.asr[tid]&&S.dash.asr[tid].avg)||{}, P={};
+  S.dash.entries.filter(e=>e.tid===tid).forEach(e=>{const a=avg[e.id], k=pKeyOf(e.orkId,e.name); const p=P[k]||(P[k]={key:k,subs:{},entries:0}); p.entries++;
+    if(a&&a.n&&(!p.subs[e.sub]||a.a>p.subs[e.sub].a)) p.subs[e.sub]={a:a.a};});
+  const list=Object.values(P).map(p=>{const best=Object.values(p.subs).map(x=>x.a).sort((a,b)=>b-a), top=best.slice(0,N);return {...p,counted:top.length,total:top.reduce((s,x)=>s+x,0),best};})
+    .sort((a,b)=>b.total-a.total||(b.best[0]||0)-(a.best[0]||0));
+  let rank=0,prev=null; list.forEach((p,i)=>{if(!p.counted){p.place=0;return;} if(p.total!==prev){rank=i+1;prev=p.total;} p.place=rank;});
+  return {list,N,of:list.filter(p=>p.counted).length};}
+function bbBracketOf(br){const keep=S.bb.br; S.bb.br=br; try{return bbBracket();}finally{S.bb.br=keep;}}
+function dashPlayers(sms){const P={}, add=(k,name,park,ork)=>{const p=P[k]||(P[k]={key:k,name,park,ork:ork||null,fids:[],combat:0,arts:new Set(),bards:0}); if(!p.park&&park)p.park=park; if(!p.ork&&ork)p.ork=ork; return p;};
+  const fev={}; sms.forEach(sm=>Object.keys(sm.fighters||{}).forEach(f=>fev[f]=(fev[f]||0)+1));
+  new Set([...Object.keys(S.fighters),...Object.keys(fev)]).forEach(f=>{const p=add(fighterKey(f),fname(f),fpark(f),fork(f)); p.fids.push(f); p.combat+=fev[f]||0;});
+  S.dash.entries.forEach(e=>{const t=tByid(e.tid); if(!isArts(t)||!inKf(t)) return; add(pKeyOf(e.orkId,e.name),e.name,e.park,e.orkId).arts.add(e.tid);});
+  S.dash.bards.forEach(b=>{const t=tByid(b.tid); if(!isBards(t)||!inKf(t)) return; add(pKeyOf(b.orkId,b.name),b.name,b.park,b.orkId).bards++;});
+  Object.values(P).forEach(p=>{p.arts=p.arts.size; p.ev=p.combat+p.arts+p.bards;}); return P;}
 function renderPlayers(){
+  watchDash();
   const root=$('#playerView');
-  if(!$('#pq')) root.innerHTML=`<div class="plgrid"><div class="panel plist"><label class="lbl" for="pq">Find a fighter</label><input id="pq" type="search" autocomplete="off" placeholder="Persona or park"><ul id="plist"></ul></div><div id="pprofile"></div></div>`;
-  const sms=summaries(), P={};
-  sms.forEach(sm=>Object.keys(sm.fighters||{}).forEach(f=>{(P[f]||(P[f]={id:f,ev:0}));P[f].ev++;}));
-  Object.keys(S.fighters).forEach(f=>{P[f]||(P[f]={id:f,ev:0});});
-  let list=Object.values(P).sort((a,b)=>fname(a.id).localeCompare(fname(b.id)));
-  if(!S.player||!P[S.player]) S.player=(list.slice().sort((a,b)=>b.ev-a.ev)[0]||{}).id||null;
-  const q=S.pq.trim().toLowerCase(); if(q) list=list.filter(p=>fname(p.id).toLowerCase().includes(q)||fpark(p.id).toLowerCase().includes(q));
-  $('#plist').innerHTML=list.length?list.slice(0,80).map(p=>`<li><button class="pbtn ${p.id===S.player?'on':''}" data-act="player" data-f="${esc(p.id)}"><span><b>${esc(fname(p.id))}</b><br><small>${esc(fpark(p.id)||'')}</small></span><small>${p.ev} event${p.ev===1?'':'s'}</small></button></li>`).join('')+(list.length>80?`<li class="foot">Showing 80 of ${list.length}. Search to narrow it down.</li>`:'')
-    :'<li class="none">No fighters match.</li>';
-  const el=$('#pprofile'), fid=S.player;
-  if(!fid){el.innerHTML='<div class="panel"><p class="none">Fighters show up here once they’ve signed up for a tournament.</p></div>';return;}
-  const hist=playerHistory(fid,sms), m=[0,0,0]; let k=0,pp=0,best=0,bestAt=null;
+  if(!$('#pq')) root.innerHTML=`<div class="plgrid"><div class="panel plist"><label class="lbl" for="pq">Find a player</label><input id="pq" type="search" autocomplete="off" placeholder="Persona or park"><ul id="plist"></ul></div><div id="pprofile"></div></div>`;
+  const sms=summaries(), P=dashPlayers(sms);
+  if(S.player&&S.fighters[S.player]&&S.pfid!==S.player){S.pfid=S.player; S.pkey=fighterKey(S.player);}
+  let list=Object.values(P).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  if(!S.pkey||!P[S.pkey]) S.pkey=(list.slice().sort((a,b)=>b.ev-a.ev)[0]||{}).key||null;
+  const q=S.pq.trim().toLowerCase(); if(q) list=list.filter(p=>String(p.name).toLowerCase().includes(q)||String(p.park||'').toLowerCase().includes(q));
+  const kinds=p=>[p.combat?`${p.combat} fight${p.combat===1?'':'s'}`:'',p.arts?`${p.arts} A&amp;S`:'',p.bards?`${p.bards} bardic`:''].filter(Boolean).join(' · ')||'No events';
+  $('#plist').innerHTML=list.length?list.slice(0,80).map(p=>`<li><button class="pbtn ${p.key===S.pkey?'on':''}" data-act="pkey" data-k="${esc(p.key)}"><span><b>${esc(p.name)}</b><br><small>${esc(p.park||'')}</small></span><small>${kinds(p)}</small></button></li>`).join('')+(list.length>80?`<li class="foot">Showing 80 of ${list.length}. Search to narrow it down.</li>`:'')
+    :'<li class="none">No players match.</li>';
+  const el=$('#pprofile'), p=P[S.pkey];
+  if(!p){el.innerHTML='<div class="panel"><p class="none">Players show up here once they’ve entered a tournament.</p></div>';return;}
+  // fighting
+  const hist=p.fids.flatMap(f=>playerHistory(f,sms)).sort((a,b)=>(a.date||'').localeCompare(b.date||'')), m=[0,0,0]; let k=0,pp=0,best=0,bestAt=null;
   const byDiv={}; DIVS.forEach(d=>byDiv[d.k]={ev:0,k:0,b:0,m:[0,0,0],pp:0});
   hist.forEach(h=>h.divs.forEach(x=>{k+=x.k;pp+=x.pp;if(x.pl)m[x.pl-1]++;if(x.b>best){best=x.b;bestAt=h;}
     const D=byDiv[x.div]; if(D){D.ev++;D.k+=x.k;D.b=Math.max(D.b,x.b);D.pp+=x.pp;if(x.pl)D.m[x.pl-1]++;}}));
-  const w=warriorOf(fid), o=fork(fid);
+  // Dragonmaster
+  const myE=S.dash.entries.filter(e=>{const t=tByid(e.tid);return isArts(t)&&inKf(t)&&pKeyOf(e.orkId,e.name)===p.key;});
+  const asEv=[...new Set(myE.map(e=>e.tid))].map(tid=>{const t=tByid(tid), show=dashShow(t), st=show?dashStand(tid):null, me=st&&st.list.find(x=>x.key===p.key), R=S.dash.asr[tid]||{};
+    return {t,show,me,of:st?st.of:0,N:asCfg(t).topN,entries:myE.filter(e=>e.tid===tid).map(e=>({e,a:show&&R.avg?R.avg[e.id]:null,fb:show&&R.fb?R.fb[e.id]||[]:[]}))};})
+    .sort((a,b)=>(a.t.date||'').localeCompare(b.t.date||''));
+  const allAvg=asEv.flatMap(v=>v.entries.map(x=>x.a&&x.a.n?x.a.a:null)).filter(x=>x!=null), bestEntry=allAvg.length?Math.max(...allAvg):null;
+  const asWins=asEv.filter(v=>v.me&&v.me.place===1&&v.t.status==='final').length;
+  // Battle of the Bards
+  const myB=S.dash.bards.filter(b=>{const t=tByid(b.tid);return isBards(t)&&inKf(t)&&pKeyOf(b.orkId,b.name)===p.key;});
+  const bbEv=myB.map(b=>{const t=tByid(b.tid), br=S.dash.bbr[b.tid]||{}, B=br.slots?bbBracketOf(br):null;
+    const ms=B?B.rounds.flat().filter(M=>M.p1===b.id||M.p2===b.id):[], wins=ms.filter(M=>M.state==='done'&&M.win===b.id).length;
+    const lost=ms.find(M=>M.state==='done'&&M.win&&M.win!==b.id), champ=B&&B.final.state==='done'&&B.final.win===b.id;
+    const jc=Object.entries(br.jc||{}).filter(([,x])=>x===b.id).map(([ri])=>B?roundName(B.R,+ri):'');
+    const res=!B?'Signed up':champ?'<b>Champion</b>':lost?(lost.r===B.R-1?'Runner-up':`Out in the ${roundName(B.R,lost.r)}`):'Still in';
+    return {t,wins,res,jc,champ};}).sort((a,b)=>(a.t.date||'').localeCompare(b.t.date||''));
+  // header
+  const o=p.ork, aw=o&&S.awards.players[o], lad=aw&&aw.l||{};
+  const orders=[aw&&aw.w?`Warrior ${aw.w}`:'',lad[25]?`Dragon ${lad[25]}`:'',lad[26]?`Garber ${lad[26]}`:'',lad[24]?`Owl ${lad[24]}`:'',lad[21]?`Rose ${lad[21]}`:''].filter(Boolean);
+  const tiles=[tile('Events',hist.length+asEv.length+bbEv.length,[hist.length?`${hist.length} fighting`:'',asEv.length?`${asEv.length} A&amp;S`:'',bbEv.length?`${bbEv.length} bardic`:''].filter(Boolean).join(' · '))];
+  if(hist.length) tiles.push(tile('Fighting points',pp+k,`${k} pit kills · ${m[0]} title${m[0]===1?'':'s'}`));
+  if(asEv.length) tiles.push(tile('A&amp;S entries',myE.length,bestEntry!=null?`best entry ${f2(bestEntry)}`:'scores not published yet'));
+  if(asEv.length) tiles.push(tile('Dragonmaster titles',asWins));
+  if(bbEv.length) tiles.push(tile('Bardic match wins',bbEv.reduce((s,x)=>s+x.wins,0),`${bbEv.filter(x=>x.champ).length} championship${bbEv.filter(x=>x.champ).length===1?'':'s'}`));
+  if(hist.length) tiles.push(tile('Best win streak',best||'—',bestAt?esc(bestAt.name):''));
+  // fighting panels (same as before)
   const df=S.pdiv, metric=S.pmetric;
   const items=hist.map(h=>{const ds=h.divs.filter(x=>df==='all'||x.div===df); if(!ds.length) return null;
     const kk=ds.reduce((a,x)=>a+x.k,0), pts=ds.reduce((a,x)=>a+x.pp+x.k,0), pl=ds.filter(x=>x.pl).map(x=>`${PLACE_TXT[x.pl-1]} ${DIV[x.div]?.s||x.div}`);
     return {v:metric==='k'?kk:pts,label:shortDate(h.date),date:h.date,tip:`${h.name}\n${longDate(h.date)} · ${h.park}\n${kk} pit kill${kk===1?'':'s'} · ${pts} points${pl.length?'\n'+pl.join(', '):''}`};}).filter(Boolean);
   const divRows=DIVS.filter(d=>byDiv[d.k].ev).map(d=>{const D=byDiv[d.k];return `<tr><td>${sw(d.k)} ${esc(d.n)}</td><td class="n">${D.ev}</td><td class="n">${D.k}</td><td class="n">${D.b||'—'}</td><td>${[0,1,2].map(i=>D.m[i]?`<span class="pip m${i+1}" title="${PLACE_TXT[i]}"></span>`.repeat(D.m[i]):'').join('')||'<span class="muted">—</span>'}</td><td class="n"><b>${D.pp+D.k}</b></td></tr>`;}).join('');
   const evRows=hist.slice().reverse().map(h=>`<tr><td class="num" style="white-space:nowrap">${esc(longDate(h.date))}</td><td>${esc(h.name)}<small class="muted" style="display:block">${esc(h.park)}</small></td><td>${h.divs.map(x=>`<span class="rchip">${sw(x.div)}${esc(DIV[x.div]?.s||x.div)} · ${x.k} kill${x.k===1?'':'s'}${x.pl?` · <b>${PLACE_TXT[x.pl-1]}</b>`:''}</span>`).join('')}</td><td class="n"><b>${h.divs.reduce((a,x)=>a+x.pp+x.k,0)}</b></td></tr>`).join('');
-  el.innerHTML=`<div class="stack"><div class="panel">
-      <h2>${esc(fname(fid))}</h2>
-      <p class="muted" style="margin:6px 0 0">${esc(fpark(fid)||'Park not set')}${o?' · '+orkLink(o):''}${w?` · Order of the Warrior ${w.w}`:''}</p>
-      <div class="tiles">${tile('Tournaments',hist.length)}${tile('Pit kills',k)}${tile('Points',pp+k,`${pp} from placing`)}${tile('Best win streak',best||'—',bestAt?esc(bestAt.name):'')}</div>
-      <div class="lbl" style="margin-bottom:4px">Podiums</div><div>${medals(m)}</div></div>
-    <div class="panel"><div class="chartbar"><h3>${metric==='k'?'Pit kills':'Points'} per tournament</h3>
+  const fightHtml=hist.length?`<div class="panel"><h2 style="margin-bottom:6px">Fighting</h2><div class="lbl" style="margin-bottom:4px">Podiums</div><div style="margin-bottom:12px">${medals(m)}</div>
+      <div class="chartbar"><h3>${metric==='k'?'Pit kills':'Points'} per tournament</h3>
         <div class="controls" style="margin:0"><div class="seg"><button class="${metric==='pts'?'on':''}" data-act="pmetric" data-v="pts">Points</button><button class="${metric==='k'?'on':''}" data-act="pmetric" data-v="k">Pit kills</button></div>
         <select id="pdiv" aria-label="Division"><option value="all">All divisions</option>${DIVS.map(d=>`<option value="${d.k}" ${df===d.k?'selected':''}>${d.n}</option>`).join('')}</select></div></div>
-      ${barChart(items,`${fname(fid)}: ${metric==='k'?'pit kills':'points'} per tournament`,contentWidth(el)-40)}
-      <p class="foot">Points are placement points (1st 5, 2nd 3, 3rd 1) plus pit kills. Hover or tab to a bar for details.</p></div>
-    <div class="panel"><h3 style="margin-bottom:8px">By division</h3>${divRows?`<div class="scroll"><table><thead><tr><th>Division</th><th class="n">Events</th><th class="n">Kills</th><th class="n">Best run</th><th>Places</th><th class="n">Points</th></tr></thead><tbody>${divRows}</tbody></table></div>`:'<p class="none">No results yet.</p>'}</div>
-    <div class="panel"><h3 style="margin-bottom:8px">Event history</h3>${evRows?`<div class="scroll"><table><thead><tr><th>Date</th><th>Tournament</th><th>Results</th><th class="n">Points</th></tr></thead><tbody>${evRows}</tbody></table></div>`:'<p class="none">No tournaments yet.</p>'}</div></div>`;
+      ${barChart(items,`${p.name}: ${metric==='k'?'pit kills':'points'} per tournament`,contentWidth(el)-40)}
+      <p class="foot">Points are placement points (1st 5, 2nd 3, 3rd 1) plus pit kills.</p></div>
+    <div class="panel"><h3 style="margin-bottom:8px">Fighting by division</h3>${divRows?`<div class="scroll"><table><thead><tr><th>Division</th><th class="n">Events</th><th class="n">Kills</th><th class="n">Best run</th><th>Places</th><th class="n">Points</th></tr></thead><tbody>${divRows}</tbody></table></div>`:'<p class="none">No results yet.</p>'}</div>
+    <div class="panel"><h3 style="margin-bottom:8px">Fighting history</h3><div class="scroll"><table><thead><tr><th>Date</th><th>Tournament</th><th>Results</th><th class="n">Points</th></tr></thead><tbody>${evRows}</tbody></table></div></div>`:'';
+  // Dragonmaster panel
+  const asItems=asEv.filter(v=>v.me&&v.me.counted).map(v=>({v:Math.round(v.me.total*100)/100,label:shortDate(v.t.date),date:v.t.date,tip:`${v.t.name}\n${longDate(v.t.date)}\nScore ${f2(v.me.total)} · ${v.me.place?ordinalN(v.me.place)+' of '+v.of:''}`}));
+  const fbList=l=>l.filter(x=>x.f&&x.f.trim()).map((x,i)=>`<div class="fbq"><span class="muted">Judge ${i+1} · ${f2(x.s)}</span><div class="wu">${esc(x.f)}</div></div>`).join('');
+  const asHtml=asEv.length?`<div class="panel"><h2 style="margin-bottom:6px">Dragonmaster</h2>
+      ${asItems.length>1?barChart(asItems,`${p.name}: Dragonmaster score per event`,contentWidth(el)-40):''}
+      ${asEv.slice().reverse().map(v=>`<div class="asev"><div class="row" style="justify-content:space-between;align-items:baseline"><div><b>${esc(v.t.name)}</b> <span class="muted">· ${esc(longDate(v.t.date))}${v.t.park?' · '+esc(v.t.park):''}</span></div>
+          <div>${!v.show?'<span class="rchip">Scores after the event is finalized</span>':v.me&&v.me.counted?`${v.me.place?`<b>${ordinalN(v.me.place)}</b> of ${v.of} · `:''}Score <b>${f2(v.me.total)}</b> · ${v.me.counted} of ${v.N} counted${v.t.status!=='final'?' <span class="rchip">Live</span>':''}`:'<span class="muted">Not scored yet</span>'}</div></div>
+        ${v.entries.map(x=>`<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(x.e.title)}</b> <span class="rchip">${esc(SUB[x.e.sub]?.n||x.e.sub)}</span></div>
+          <span class="scorepill ${x.a&&x.a.n?'done':''}">${x.a&&x.a.n?f2(x.a.a):v.show?'Not scored':'—'}</span></div>
+          ${x.a&&x.a.n?`<div class="meta">${x.a.n} judge${x.a.n===1?'':'s'}${x.a.trim?' · highest and lowest dropped':''}</div>`:''}
+          ${fbList(x.fb)?`<details><summary class="muted" style="cursor:pointer">Judges’ feedback</summary>${fbList(x.fb)}</details>`:''}</div>`).join('')}</div>`).join('')}
+      <p class="foot">Judges’ names are never shown. Scores appear once the event is finalized, or sooner when the A&amp;S Crat shows live scores.</p></div>`:'';
+  const bbHtml=bbEv.length?`<div class="panel"><h2 style="margin-bottom:8px">Battle of the Bards</h2><div class="scroll"><table><thead><tr><th>Date</th><th>Event</th><th class="n">Match wins</th><th>Result</th><th>Judges’ Choice</th></tr></thead><tbody>
+      ${bbEv.slice().reverse().map(v=>`<tr><td class="num" style="white-space:nowrap">${esc(longDate(v.t.date))}</td><td>${esc(v.t.name)}<small class="muted" style="display:block">${esc(v.t.park||'')}</small></td><td class="n">${v.wins}</td><td>${v.res}</td><td>${v.jc.length?esc(v.jc.join(', ')):'<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div></div>`:'';
+  el.innerHTML=`<div class="stack"><div class="panel">
+      <h2>${esc(p.name)}</h2>
+      <p class="muted" style="margin:6px 0 0">${esc(p.park||'Park not set')}${o?' · '+orkLink(o):''}${orders.length?' · '+esc(orders.join(' · ')):''}</p>
+      <div class="tiles">${tiles.join('')}</div></div>
+    ${fightHtml}${asHtml}${bbHtml}${!hist.length&&!asEv.length&&!bbEv.length?'<div class="panel"><p class="none">No results yet.</p></div>':''}</div>`;
 }
 document.addEventListener('input',e=>{if(e.target.id==='pq'){S.pq=e.target.value;renderPlayers();}});
 
@@ -1098,7 +1168,8 @@ const H={
       t.status='final'; clearTimeout(sumTimers[t.id]); await writeSummary(t.id); toast(`${t.name} is final. Results are saved to history.`);}},
   reopenT:async()=>{const t=T(); if(!t||!arm('reopenT:'+t.id))return;
     if(await w(()=>S.db.doc('tournaments/'+t.id).update({status:'open'}))) toast(`${t.name} is open for changes again.`);},
-  player:ds=>{S.player=ds.f;S.tab='players';saveLocal();render();window.scrollTo({top:0});},
+  pkey:ds=>{S.pkey=ds.k;S.tab='players';render();window.scrollTo({top:0});},
+  player:ds=>{S.player=ds.f;S.pfid=ds.f;S.pkey=fighterKey(ds.f);S.tab='players';saveLocal();render();window.scrollTo({top:0});},
   park:ds=>{S.park=ds.p;render();},
   pmetric:ds=>{S.pmetric=ds.v;render();},
   rec:ds=>{const id=S.tid+'__'+ds.f, cur=S.recs[id]?.status; const next=cur===ds.v?null:ds.v;
@@ -1625,10 +1696,16 @@ function asAverages(){
   return (S.as.results&&S.as.results.avg)||{};
 }
 let asPubT=null;
+/* Public results for the event: entry averages, plus each entry's scores and judges' feedback with no
+   judge names once the event is final or live scores are on (shown on the Players dashboard). */
+const stab=o=>JSON.stringify(o,(k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a<b?-1:a>b?1:0)):v);
 function maybePublishResults(){
-  if(!S.as.scoresReadable||!S.db||T()?.status==='final') return;
-  const avg=asAverages(), cur=JSON.stringify((S.as.results&&S.as.results.avg)||{}), next=JSON.stringify(avg); if(cur===next) return;
-  clearTimeout(asPubT); const tid=S.tid; asPubT=setTimeout(()=>{S.db.doc('asResults/'+tid).set({avg,updatedAt:Date.now()}).catch(e=>console.warn('asResults',e));},1200);
+  if(!S.as.scoresReadable||!S.db) return; const t=T(); if(!t) return;
+  const avg=asAverages(), show=t.status==='final'||!!asCfg(t).live, fb={};
+  if(show) Object.values(S.as.scores).forEach(sc=>{(fb[sc.eid]||(fb[sc.eid]=[])).push({s:Number(sc.score)||0,f:String(sc.feedback||'').slice(0,5000)});});
+  Object.values(fb).forEach(l=>l.sort((a,b)=>b.s-a.s||(a.f<b.f?-1:a.f>b.f?1:0)));
+  const R=S.as.results||{}; if(stab(R.avg||{})===stab(avg)&&stab(R.fb||{})===stab(fb)) return;
+  clearTimeout(asPubT); const tid=S.tid; asPubT=setTimeout(()=>{S.db.doc('asResults/'+tid).set({avg,fb,updatedAt:Date.now()}).catch(e=>console.warn('asResults',e));},1200);
 }
 function asStandings(avg){
   const N=asCfg(T()).topN, P={};
@@ -1691,7 +1768,7 @@ function renderEntries(){
         <div class="field"><label for="aeWriteup">Documentation writeup</label><textarea id="aeWriteup" rows="8" maxlength="20000" required placeholder="What you made, how you made it, materials, sources and what you learned."></textarea></div>
         <div class="field"><label for="aeLinks">Links to photos or documents (optional, one per line, up to 5)</label><textarea id="aeLinks" rows="3" placeholder="https://drive.google.com/…"></textarea></div>
         <div class="row"><button class="btn" type="submit">Submit entry</button></div>
-        <p class="foot" style="margin:0">After you submit, you get a private link to your judges’ scores and feedback. They appear once the A&amp;S Crat finalizes the event.</p>
+        <p class="foot" style="margin:0">After you submit, you get a private link to your judges’ scores and feedback. They appear once the A&amp;S Crat finalizes the event, and also on your Players profile, without judges’ names.</p>
       </form><div id="aeDone" hidden></div></div>`
       :`<div class="panel"><h2>Entries are closed</h2><p class="muted" style="margin:0">${t.status==='final'?'This event is finalized. See the Scores tab for results.':'The A&S Crat has closed entries for this event.'}</p></div>`;}
   const byCat=AS_CATS.map(cat=>({cat,list:S.as.entries.filter(e=>SUB[e.sub]?.cat===cat.k)})).filter(x=>x.list.length);
@@ -2323,6 +2400,22 @@ Object.assign(H2,{
   db.collection('results').onSnapshot(s=>{S.results=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));S.resultsSeen=true;render();},fail);
 })();
 
+
+/* Players is shared by every event type: move its tab button to the end and let fighting,
+   Dragonmaster and Battle of the Bards events all open it. */
+(function(){const pb=document.querySelector('#tabs [data-tab="players"]'); if(pb){pb.classList.remove('cb-tab'); $('#tabs').appendChild(pb);}
+  const st=document.createElement('style'); st.textContent='.asev{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.asev:first-of-type{border-top:0}.fbq{margin:8px 0;padding:8px 10px;border-left:3px solid var(--line);background:var(--panel2);border-radius:6px}.fbq .wu{margin-top:4px;white-space:pre-wrap}';
+  document.head.appendChild(st);})();
+const kindRender=render;
+render=function(){
+  if(S.fbMode) return;
+  const t=T();
+  if(S.tab!=='players'||!t||!(isArts(t)||isBards(t))){kindRender();return;}
+  S.tab=null; kindRender(); S.tab='players';
+  document.querySelectorAll('section[id^="tab-"]').forEach(x=>x.hidden=x.id!=='tab-players');
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab==='players'));
+  renderPlayers(); gate();
+};
 </script>
 </body>
 </html>
