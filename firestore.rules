@@ -47,6 +47,11 @@ service cloud.firestore {
         && d.at is number
         && artsOpen(d.tid);
     }
+    // Weapon, Shield and Armor entries can't score above 2.99 until a marshal marks them field legal.
+    function legalOk(d) {
+      let e = get(/databases/$(database)/documents/entries/$(d.eid)).data;
+      return !(e.get('sub', '') in ['weapon', 'shield', 'armor']) || e.get('legal', false) == true || d.score <= 2.99;
+    }
     function validScore(id, d) {
       return isJudge(d.tid)
         && d.keys().hasOnly(['tid', 'eid', 'judge', 'score', 'feedback', 'at'])
@@ -56,7 +61,8 @@ service cloud.firestore {
         && d.score >= get(/databases/$(database)/documents/tournaments/$(d.tid)).data['as']['min']
         && d.score <= get(/databases/$(database)/documents/tournaments/$(d.tid)).data['as']['max']
         && (!('feedback' in d) || (d.feedback is string && d.feedback.size() <= 5000))
-        && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('status', 'open') != 'final';
+        && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('status', 'open') != 'final'
+        && legalOk(d);
     }
     // A marshal of the event types in a score for a judge on its list (a paper judge, or a judge
     // without their phone). The score is filed under that judge, stamped with the marshal's email.
@@ -71,7 +77,8 @@ service cloud.firestore {
         && d.score >= get(/databases/$(database)/documents/tournaments/$(d.tid)).data['as']['min']
         && d.score <= get(/databases/$(database)/documents/tournaments/$(d.tid)).data['as']['max']
         && (!('feedback' in d) || (d.feedback is string && d.feedback.size() <= 5000))
-        && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('status', 'open') != 'final';
+        && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('status', 'open') != 'final'
+        && legalOk(d);
     }
     function isHeadJudge(tid) {
       return signedIn() && get(/databases/$(database)/documents/tournaments/$(tid)).data.get('bb', {}).get('head', '') == myEmail();

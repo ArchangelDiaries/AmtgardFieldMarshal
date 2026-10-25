@@ -788,8 +788,8 @@ const fighterKey=fid=>pKeyOf(fork(fid),fname(fid));
 const dashShow=t=>!!t&&(t.status==='final'||!!(t.as&&t.as.live));
 function dashStand(tid){const t=tByid(tid), N=asCfg(t).topN, avg=(S.dash.asr[tid]&&S.dash.asr[tid].avg)||{}, P={};
   S.dash.entries.filter(e=>e.tid===tid).forEach(e=>{const a=avg[e.id], k=pKeyOf(e.orkId,e.name); const p=P[k]||(P[k]={key:k,subs:{},entries:0}); p.entries++;
-    if(a&&a.n&&(!p.subs[e.sub]||eScore(a)>p.subs[e.sub].a)) p.subs[e.sub]={a:eScore(a)};});
-  const list=Object.values(P).map(p=>{const best=Object.values(p.subs).map(x=>x.a).sort((a,b)=>b-a), top=best.slice(0,N);return {...p,counted:top.length,total:top.reduce((s,x)=>s+x,0),best};})
+    if(a&&a.n&&(!p.subs[e.sub]||eScore(a)>p.subs[e.sub].a)) p.subs[e.sub]={a:eScore(a),avg:a.a};});
+  const list=Object.values(P).map(p=>{const tops=Object.values(p.subs).sort((a,b)=>b.a-a.a), best=tops.map(x=>x.a), top=tops.slice(0,N);return {...p,counted:top.length,total:top.reduce((s,x)=>s+x.a,0),avg:top.length?top.reduce((s,x)=>s+x.avg,0)/top.length:0,best};})
     .sort((a,b)=>b.total-a.total||(b.best[0]||0)-(a.best[0]||0));
   let rank=0,prev=null; list.forEach((p,i)=>{if(!p.counted){p.place=0;return;} if(p.total!==prev){rank=i+1;prev=p.total;} p.place=rank;});
   return {list,N,of:list.filter(p=>p.counted).length};}
@@ -855,7 +855,7 @@ function profileHtml(p,sms,width,fbFor){
           <div>${!v.show?'<span class="rchip">Scores after the event is finalized</span>':v.me&&v.me.counted?`${v.me.place?`<b>${ordinalN(v.me.place)}</b> of ${v.of} · `:''}Score <b>${f2(v.me.total)}</b> · ${v.me.counted} of ${v.N} counted${v.t.status!=='final'?' <span class="rchip">Live</span>':''}`:'<span class="muted">Not scored yet</span>'}</div></div>
         ${v.entries.map(x=>`<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(x.e.title)}</b> <span class="rchip">${esc(SUB[x.e.sub]?.n||x.e.sub)}</span></div>
           <span class="scorepill ${x.a&&x.a.n?'done':''}">${x.a&&x.a.n?f2(eScore(x.a)):v.show?'Not scored':'—'}</span></div>
-          ${x.a&&x.a.n?`<div class="meta">${x.a.n} judge${x.a.n===1?'':'s'}${x.a.trim?' · highest and lowest dropped':''} · average ${f2(x.a.a)}</div>`:''}
+          ${x.a&&x.a.n?`<div class="meta">${x.a.n} judge${x.a.n===1?'':'s'}${x.a.trim?' · per the event’s drop rule':''} · average ${f2(x.a.a)}</div>`:''}
           ${fbList(x.fb)?`<details><summary class="muted" style="cursor:pointer">Judges’ feedback</summary>${fbList(x.fb)}</details>`:''}</div>`).join('')}</div>`).join('')}
       <p class="foot">Judges’ names are never shown. Scores appear once the event is finalized, or sooner when the A&amp;S Crat shows live scores. Feedback is visible only to you and the marshals.</p></div>`:'';
   const bbHtml=bbEv.length?`<div class="panel"><h2 style="margin-bottom:8px">Battle of the Bards</h2><div class="scroll"><table><thead><tr><th>Date</th><th>Event</th><th class="n">Match wins</th><th>Result</th><th>Judges’ Choice</th></tr></thead><tbody>
@@ -1589,7 +1589,19 @@ const ALL_SUBS=Object.keys(SUB);
 const AS_TABS=['entries','judging','asboard','asawards'];
 S.as={tid:null,key:'',entries:[],judges:[],myJudge:null,scores:{},scoresReadable:false,results:null,draft:{},subs:[],last:{},formTid:null,autoLadder:{}};
 const isArts=t=>!!t&&t.kind==='arts';
-const asCfg=t=>{const a=(t&&t.as)||{};return {min:Number.isFinite(+a.min)?+a.min:1,max:Number.isFinite(+a.max)?+a.max:5,topN:+a.topN||5,thr:Number.isFinite(+a.thr)?+a.thr:4,subs:Array.isArray(a.subs)&&a.subs.length?a.subs:ALL_SUBS,live:!!a.live};};
+/* Score increments a judge can enter, chosen per event (as.step). */
+const STEPS=[0.01,0.1,0.25];
+const stepLabel=v=>v===0.25?'.25 (quarter points)':v===0.1?'.1 (tenths)':'.01 (hundredths)';
+/* Field-legal check: Weapon, Shield and Armor entries can't score above 2.99 until a marshal marks the
+   entry field legal (entries.legal === true). Scores above 2.99 saved before it was marked non-legal (or
+   before this check existed) still count as entered, flagged for the judge to re-score. */
+const LEGAL_SUBS=new Set(['weapon','shield','armor']), LEGAL_CAP=2.99;
+const legalCapped=e=>!!e&&LEGAL_SUBS.has(e.sub)&&e.legal!==true;
+const legalTxt=e=>e.legal===true?'Field legal':e.legal===false?'Not field legal':'Not yet checked for field legality';
+function snapScore(v,c,e){const st=c.step||0.01; let x=Math.round(Math.round(v/st)*st*100)/100; x=Math.min(c.max,Math.max(c.min,x)); if(legalCapped(e)&&x>LEGAL_CAP) x=LEGAL_CAP; return x;}
+const JFMT={'3':{n:3,lo:0,hi:0,label:'3 judges · average all three'},'4l':{n:4,lo:1,hi:0,label:'4 judges · drop the lowest'},
+  '4h':{n:4,lo:0,hi:1,label:'4 judges · drop the highest'},'5':{n:5,lo:1,hi:1,label:'5 judges · drop the lowest and highest'}};
+const asCfg=t=>{const a=(t&&t.as)||{};return {min:Number.isFinite(+a.min)?+a.min:1,max:Number.isFinite(+a.max)?+a.max:5,topN:+a.topN||5,thr:Number.isFinite(+a.thr)?+a.thr:4,subs:Array.isArray(a.subs)&&a.subs.length?a.subs:ALL_SUBS,live:!!a.live,fmt:JFMT[a.fmt]?a.fmt:'5',step:STEPS.includes(+a.step)?+a.step:0.01};};
 const f2=n=>(Math.round(n*100)/100).toFixed(2);
 const snapQ=v=>Math.round(v*100)/100;  // scores are kept to hundredths (.00)
 const playerKey=e=>e.orkId?('o'+e.orkId):('n'+String(e.name||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-'));
@@ -1635,8 +1647,10 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
       <div class="field" style="flex:0 1 130px"><label for="aMin">Lowest score</label><input id="aMin" type="number" step="0.01" value="1"></div>
       <div class="field" style="flex:0 1 130px"><label for="aMax">Highest score</label><input id="aMax" type="number" step="0.01" value="5"></div>
       <div class="field" style="flex:0 1 190px"><label for="aTop">Categories counted</label><input id="aTop" type="number" min="1" max="36" value="5"></div>
-      <div class="field" style="flex:0 1 220px"><label for="aThr">Award threshold</label><input id="aThr" type="number" step="0.01" value="4"></div></div>
-    <p class="foot" style="margin:0">Judges score to two decimal places (.00). Entries averaging at or above the award threshold are flagged for award recommendations. A player’s Dragonmaster score adds their best score in each of their top sub-categories (Westmarch midreign counts 5).</p>
+      <div class="field" style="flex:0 1 220px"><label for="aThr">Award threshold</label><input id="aThr" type="number" step="0.01" value="4"></div>
+      <div class="field" style="flex:0 1 300px"><label for="aFmt">Judge type</label><select id="aFmt">${Object.entries(JFMT).map(([k,f])=>`<option value="${k}" ${k==='5'?'selected':''}>${f.label}</option>`).join('')}</select></div>
+      <div class="field" style="flex:0 1 220px"><label for="aStep">Score increments</label><select id="aStep">${STEPS.map(v=>`<option value="${v}">${stepLabel(v)}</option>`).join('')}</select></div></div>
+    <p class="foot" style="margin:0">Judges score in the increments you pick. Weapon, Shield and Armor entries can’t score above 2.99 until a marshal marks them field legal on the Entries tab. Entries averaging at or above the award threshold are flagged for award recommendations. A player’s Dragonmaster score adds their best score in each of their top sub-categories (Westmarch midreign counts 5).</p>
     <div><div class="lbl" style="margin-bottom:6px">Sub-categories offered</div><div class="catgrid" id="aSubs">${AS_CATS.map(c=>`<fieldset><legend>${c.n}</legend>${c.subs.map(([k,n])=>`<label><input type="checkbox" value="${k}" checked>${esc(n)}</label>`).join('')}</fieldset>`).join('')}</div></div></div>`);
   const combatBits=[$('#tFormat').closest('.field'),$('#tMinField'),$('#tFormatHelp'),divBlock];
   const sync=()=>{const kind=$('#tKind').value; $('#tArts').hidden=kind!=='arts'; const tb=$('#tBards'); if(tb) tb.hidden=kind!=='bards';
@@ -1654,7 +1668,7 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
     if(!subs.length){toast('Offer at least one sub-category.');return;}
     const name=$('#tName').value.trim(); if(!name) return;
     const data={name,date:$('#tDate').value,park:$('#tPark').value.trim(),kingdom:$('#tKingdom').value||'westmarch',level:$('#tLevel').value,kind:'arts',divs:[],signupsOpen:true,
-      as:{min,max,topN,thr,subs,live:false},at:Date.now()};
+      as:{min,max,topN,thr,subs,live:false,fmt:JFMT[$('#aFmt').value]?$('#aFmt').value:'5',step:STEPS.includes(+$('#aStep').value)?+$('#aStep').value:0.01},at:Date.now()};
     const ref=S.db.collection('tournaments').doc();
     if(await w(()=>ref.set(data))){S.tid=ref.id;if(S.kf!=='all')S.kf=data.kingdom;setUrlT(S.tid);S.tab='entries';$('#newT').hidden=true;$('#tName').value='';$('#tKind').value='combat';sync();render();toast(`${name} is open for entries.`);}
   },true);
@@ -1679,15 +1693,18 @@ function watchArts(){
   }
 }
 /* Dragonmaster scoring: with 5 or more judges, drop the single highest and single lowest score, then average the rest. */
+/* Judging format, chosen when the event is set up (as.fmt). Every format counts three scores:
+     '3'  3 judges: all three count
+     '4l' 4 judges: drop the lowest     '4h' 4 judges: drop the highest
+     '5'  5 judges: drop the lowest and the highest (default, and for events made before this option)
+   A judge who hasn't scored an entry counts as 0, so with a drop-lowest format the blank is the one dropped.
+   Entry score = the counted scores added together; entry average = that ÷ the number counted. */
 const TRIM_AT=5;
-/* Entry score on the Scores tab = the counted judges' scores added together, on a three-judge basis:
-   with 5 judges, the middle three after dropping the highest and lowest. With another number of
-   judges the average is scaled to three, so every entry is on the same footing. Award thresholds
-   still use the average (the 1–5 style scale the Crat sets). */
-const COMBINE=3;
-const eScore=a=>a&&a.n?a.a*COMBINE:0;
-function trimmedAvg(list){const v=list.slice().sort((x,y)=>x-y), n=v.length, trim=n>=TRIM_AT, used=trim?v.slice(1,-1):v;
-  return {a:used.reduce((s,x)=>s+x,0)/used.length,n,trim};}
+const eScore=a=>a&&a.n?(a.s!=null?a.s:a.a*3):0;
+function entryCalc(list,fmt){const F=JFMT[fmt]||JFMT['5'], have=list.length, v=list.concat(Array(Math.max(0,F.n-have)).fill(0)).sort((x,y)=>x-y);
+  const used=v.slice(F.lo,v.length-F.hi), sum=used.reduce((a,x)=>a+x,0);
+  return {a:sum/used.length,s:Math.round(sum*100)/100,n:have,need:F.n,used:used.length,trim:F.lo+F.hi>0};}
+function trimmedAvg(list){return entryCalc(list,asCfg(T()).fmt);}
 function asAverages(){
   if(S.as.scoresReadable){const m={};Object.values(S.as.scores).forEach(sc=>{(m[sc.eid]||(m[sc.eid]=[])).push(Number(sc.score)||0);});
     return Object.fromEntries(Object.entries(m).map(([k,v])=>[k,trimmedAvg(v)]));}
@@ -1720,9 +1737,9 @@ function publishPfb(show,t){if(!S.isMarshal&&!S.as.myJudge) return; const tid=t.
 function asStandings(avg){
   const N=asCfg(T()).topN, P={};
   S.as.entries.forEach(e=>{const a=avg[e.id], k=playerKey(e); const p=P[k]||(P[k]={key:k,name:e.name,park:e.park,orkId:e.orkId,subs:{},entries:0});
-    p.entries++; if(a&&a.n&&(!p.subs[e.sub]||eScore(a)>p.subs[e.sub].a)) p.subs[e.sub]={a:eScore(a),eid:e.id};});
-  return Object.values(P).map(p=>{const best=Object.values(p.subs).map(x=>x.a).sort((a,b)=>b-a), top=best.slice(0,N);
-    return {...p,nsubs:Object.keys(p.subs).length,counted:top.length,total:top.reduce((s,x)=>s+x,0),best};})
+    p.entries++; if(a&&a.n&&(!p.subs[e.sub]||eScore(a)>p.subs[e.sub].a)) p.subs[e.sub]={a:eScore(a),avg:a.a,eid:e.id};});
+  return Object.values(P).map(p=>{const tops=Object.values(p.subs).sort((a,b)=>b.a-a.a), best=tops.map(x=>x.a), top=tops.slice(0,N);
+    return {...p,nsubs:Object.keys(p.subs).length,counted:top.length,total:top.reduce((s,x)=>s+x.a,0),avg:top.length?top.reduce((s,x)=>s+x.avg,0)/top.length:0,best};})
    .sort((a,b)=>b.total-a.total||(b.best[0]||0)-(a.best[0]||0)||String(a.name).localeCompare(String(b.name)));
 }
 /* A judge's key is their email, or paper-<name> for a judge without the app whose scores a marshal types in. */
@@ -1743,7 +1760,7 @@ render=function(){
   document.body.classList.toggle('marshal',!!S.isMarshal);
   renderAuth(); renderHeader(); watchArts();
   const c=asCfg(t), players=new Set(S.as.entries.map(playerKey)).size;
-  $('#tmeta').innerHTML=`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${S.as.entries.length}</b> entries from <b>${players}</b> player${players===1?'':'s'}</span><span>Arts &amp; Sciences · Dragonmaster</span><span>Scores ${f2(c.min)}–${f2(c.max)} · best ${c.topN} sub-categories count</span>`;
+  $('#tmeta').innerHTML=`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${S.as.entries.length}</b> entries from <b>${players}</b> player${players===1?'':'s'}</span><span>Arts &amp; Sciences · Dragonmaster</span><span>Scores ${f2(c.min)}–${f2(c.max)} in ${String(c.step).replace(/^0/,'')} steps · ${esc(JFMT[c.fmt].label)} · best ${c.topN} sub-categories count</span>`;
   $('#tabs').hidden=false; $('#empty').hidden=true;
   ['signups','pits','brackets','board','players','parks','awards'].forEach(x=>$('#tab-'+x).hidden=true);
   const canJudge=S.isMarshal||!!S.as.myJudge;
@@ -1784,8 +1801,9 @@ function renderEntries(){
   const byCat=AS_CATS.map(cat=>({cat,list:S.as.entries.filter(e=>SUB[e.sub]?.cat===cat.k)})).filter(x=>x.list.length);
   const list=byCat.length?byCat.map(({cat,list})=>`<h3 style="margin:14px 0 4px">${esc(cat.n)} <span class="muted" style="font:500 .9rem var(--body)">· ${list.length}</span></h3>${list.map(e=>{const k='asdel:'+e.id;
       return `<div class="entry"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span></div>
-      <div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}${e.orkId?' · '+orkLink(e.orkId):''}</div>
+      <div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}${e.orkId?' · '+orkLink(e.orkId):''}${LEGAL_SUBS.has(e.sub)?' · '+esc(legalTxt(e)):''}</div>
       ${S.isMarshal?`<div class="row m-only"><select data-assub="${esc(e.id)}" aria-label="Category for ${esc(e.title)}" style="max-width:300px">${subOptions(c,e.sub)}</select>
+        ${LEGAL_SUBS.has(e.sub)?`<select data-aslegal="${esc(e.id)}" aria-label="Field legal for ${esc(e.title)}" style="max-width:230px"><option value="">Field legal: not checked</option><option value="yes" ${e.legal===true?'selected':''}>Field legal</option><option value="no" ${e.legal===false?'selected':''}>Not field legal (max 2.99)</option></select>`:''}
         <input id="aork-${esc(e.id)}" data-asork="${esc(e.id)}" value="${esc(e.orkId||'')}" placeholder="ORK link or ID" aria-label="ORK profile for ${esc(e.title)}" autocomplete="off" inputmode="url" style="max-width:220px">
         ${(()=>{if(e.orkId)return ''; const o=S.as.entries.find(x=>x.orkId&&x.id!==e.id&&String(x.name||'').trim().toLowerCase()===String(e.name||'').trim().toLowerCase());
           return o?`<button class="btn sm ghost" data-act="asorkuse" data-e="${esc(e.id)}" data-o="${esc(o.orkId)}">Use ORK #${esc(o.orkId)} from their other entry</button>`:'';})()}
@@ -1835,12 +1853,13 @@ function renderJudging(){
         return orph.length?`<div class="banner" style="margin-top:10px"><span><b>${orph.length} score${orph.length===1?'':'s'}</b> still count${orph.length===1?'s':''} from judge${who.length===1?'':'s'} no longer on the list (${esc(who.map(x=>x.startsWith('paper-')?x.slice(6).replace(/-/g,' '):x).join(', '))}).</span>
           <button class="btn sm danger ${S.confirm==='rmO:'+S.tid?'armed':''}" data-act="rmOrphans">${S.confirm==='rmO:'+S.tid?'Tap again to delete them':'Delete those scores'}</button></div>`:'';})(),'jlist');
     const avg=asAverages();
-    setHtml($('#asProgress'),S.as.entries.length?`<h3 style="margin-bottom:6px">Scoring progress</h3><div class="scroll"><table><thead><tr><th>Entry</th><th>Category</th><th class="n">Judges</th><th>Scores</th><th class="n">Entry score</th></tr></thead><tbody>
+    setHtml($('#asProgress'),S.as.entries.length?`<h3 style="margin-bottom:6px">Scoring progress</h3><div class="scroll"><table><thead><tr><th>Entry</th><th>Category</th><th class="n">Scores in</th><th>Scores</th><th class="n">Entry score</th></tr></thead><tbody>
       ${S.as.entries.map(e=>{const elig=S.as.judges.filter(j=>judgeCanScore(j,e)).length, a=avg[e.id];
-        const keys=new Set(S.as.judges.map(jKey)), sc=scoresFor(e.id).map(x=>({v:Number(x.score)||0,gone:!keys.has(x.judge)})).sort((x,y)=>x.v-y.v), tr=sc.length>=TRIM_AT;
-        const cells=sc.map((x,i)=>{const drop=tr&&(i===0||i===sc.length-1);return `<span class="rchip" style="${drop?'text-decoration:line-through;opacity:.6':''}${x.gone?';border-color:var(--danger,#b3261e)':''}" title="${drop?(i===0?'Lowest, dropped':'Highest, dropped'):'Counted'}${x.gone?' · from a judge no longer on the list':''}">${f2(x.v)}</span>`;}).join(' ');
-        return `<tr><td><b>${esc(e.title)}</b><small class="muted" style="display:block">${esc(e.name)}</small></td><td>${esc(SUB[e.sub]?.n||e.sub)}</td><td class="n">${a?a.n:0} of ${elig}</td><td>${cells||'<span class="muted">—</span>'}</td><td class="n">${a?`<b>${f2(eScore(a))}</b><small class="muted" style="display:block">avg ${f2(a.a)}${a.n!==COMBINE?` × ${COMBINE}`:''}</small>`:'—'}</td></tr>`;}).join('')}</tbody></table></div>
-      <p class="foot" style="margin:6px 0 0">With ${TRIM_AT} or more scores, the lowest and highest (struck through) are dropped. Entry score = the counted scores added together on a three-judge basis (the middle three with 5 judges); it’s what the Scores tab uses. A red outline marks a score from a judge no longer on the list.</p>`:'','progress');
+        const keys=new Set(S.as.judges.map(jKey)), F=JFMT[c.fmt], sc0=scoresFor(e.id).map(x=>({v:Number(x.score)||0,gone:!keys.has(x.judge)}));
+        const sc=sc0.concat(Array(Math.max(0,F.n-sc0.length)).fill(0).map(()=>({v:0,blank:true}))).sort((x,y)=>x.v-y.v);
+        const cells=sc.map((x,i)=>{const drop=i<F.lo||i>=sc.length-F.hi; if(x.blank) return `<span class="rchip muted" style="${drop?'text-decoration:line-through;opacity:.6':''}" title="Not scored yet, counts as 0${drop?', dropped':''}">0 ·  blank</span>`;return `<span class="rchip" style="${drop?'text-decoration:line-through;opacity:.6':''}${x.gone?';border-color:var(--danger,#b3261e)':''}" title="${drop?(i<F.lo?'Lowest, dropped':'Highest, dropped'):'Counted'}${x.gone?' · from a judge no longer on the list':''}">${f2(x.v)}</span>`;}).join(' ');
+        return `<tr><td><b>${esc(e.title)}</b><small class="muted" style="display:block">${esc(e.name)}</small></td><td>${esc(SUB[e.sub]?.n||e.sub)}${LEGAL_SUBS.has(e.sub)?`<small class="muted" style="display:block">${esc(legalTxt(e))}</small>`:''}</td><td class="n">${a?a.n:0} of ${elig}</td><td>${cells||'<span class="muted">—</span>'}</td><td class="n">${a?`<b>${f2(eScore(a))}</b><small class="muted" style="display:block">avg ${f2(a.a)}</small>`:'—'}${sc0.length>F.n?`<small style="display:block;color:var(--danger,#b3261e)">${sc0.length} scores for a ${F.n}-judge event. Remove the extra.</small>`:''}${legalCapped(e)&&sc0.some(x=>x.v>LEGAL_CAP)?`<small style="display:block;color:var(--danger,#b3261e)">${legalTxt(e)}: scores above 2.99 need re-scoring</small>`:''}</td></tr>`;}).join('')}</tbody></table></div>
+      <p class="foot" style="margin:6px 0 0">Judging: ${esc(JFMT[c.fmt].label)}. Dropped scores are struck through; a judge who hasn’t scored yet counts as 0. Entry score = the three counted scores added together (the Scores tab uses it); avg = entry score ÷ 3. A red outline marks a score from a judge no longer on the list.</p>`:'','progress');
   } else {$('#asJudgeAdmin').innerHTML=''; S.as.adminTid=null; delete S.as.last.jlist; delete S.as.last.progress;}
   // Marshals: type in scores for any judge on the list (paper judges, or a judge without their phone).
   if(S.isMarshal){const pj=S.as.judges.find(x=>x.id===S.as.proxyJ)||null;
@@ -1853,7 +1872,7 @@ function renderJudging(){
   const j=S.as.myJudge;
   if(!j){setHtml($('#asJudgePanel'),S.isMarshal?'':'','jpanel');return;}
   setHtml($('#asJudgePanel'),`<div class="panel"><h2>Your judging <span class="sub">${judgeDone(j)} of ${S.as.entries.filter(e=>judgeCanScore(j,e)).length} scored</span></h2>
-    <p class="foot" style="margin:0 0 6px">${j.cats&&j.cats.length?'You judge: '+j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', ')+'.':'You judge every category.'} Scores run ${c.min}–${c.max}, to two decimals. ${final?'This event is finalized, so scores are locked.':'Each entrant sees your score and feedback, without your name, after the event is finalized.'}</p>
+    <p class="foot" style="margin:0 0 6px">${j.cats&&j.cats.length?'You judge: '+j.cats.map(k=>esc(AS_CATS.find(x=>x.k===k)?.n||k)).join(', ')+'.':'You judge every category.'} Scores run ${c.min}–${c.max} in ${String(c.step).replace(/^0/,'')} steps; Weapon, Shield and Armor entries max out at 2.99 until marked field legal. ${final?'This event is finalized, so scores are locked.':'Each entrant sees your score and feedback, without your name, after the event is finalized.'}</p>
     ${judgeCards(j,'')}</div>`,'jpanel');
 }
 const judgeDone=j=>S.as.entries.filter(e=>judgeCanScore(j,e)&&S.as.scores[e.id+'__'+jKey(j)]).length;
@@ -1863,12 +1882,14 @@ function judgeCards(j,mode){const t=T(), c=asCfg(t), final=t.status==='final', j
   const mine=S.as.entries.filter(e=>judgeCanScore(j,e));
   const cards=mine.map(e=>{const saved=S.as.scores[e.id+'__'+jk], dr=drafts[e.id]||{};
     const sv=dr.score!=null?dr.score:(saved?saved.score:''), fb=dr.fb!=null?dr.fb:(saved?saved.feedback||'':'');
-    return `<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span><div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}</div></div>
+    const cap=legalCapped(e), hi=cap?Math.min(c.max,LEGAL_CAP):c.max, redo=saved&&cap&&Number(saved.score)>LEGAL_CAP;
+    return `<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span>${LEGAL_SUBS.has(e.sub)?` <span class="rchip" style="${e.legal===true?'border-color:var(--good)':'border-color:var(--danger,#b3261e)'}">${legalTxt(e)}</span>`:''}<div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}</div></div>
       <span class="scorepill ${saved?'done':''}">${saved?f2(saved.score):'Not scored'}</span></div>
+      ${redo?`<div class="banner" style="margin:6px 0"><span><b>Re-score needed.</b> This entry isn’t marked field legal, so it can’t score above 2.99. This score still counts as entered until it’s changed.</span></div>`:''}
       ${mode?'':`<details ${saved?'':'open'}><summary class="muted" style="cursor:pointer">Writeup${e.links&&e.links.length?` and ${e.links.length} link${e.links.length===1?'':'s'}`:''}</summary>
         <div class="wu" style="margin-top:6px">${esc(e.writeup)}</div>
         ${(e.links||[]).map(l=>`<div><a class="orkl" href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length>70?l.slice(0,67)+'…':l)}</a></div>`).join('')}</details>`}
-      <div class="jrow"><div class="field" style="flex:0 0 auto"><label for="${pre}js-${esc(e.id)}">Score (${c.min}–${c.max})</label><input id="${pre}js-${esc(e.id)}" data-js="${esc(e.id)}" data-jm="${mode}" type="number" inputmode="decimal" min="${c.min}" max="${c.max}" step="0.01" value="${esc(sv)}" ${final?'disabled':''}></div>
+      <div class="jrow"><div class="field" style="flex:0 0 auto"><label for="${pre}js-${esc(e.id)}">Score (${c.min}–${f2(hi)}, ${String(c.step).replace(/^0/,'')} steps)</label><input id="${pre}js-${esc(e.id)}" data-js="${esc(e.id)}" data-jm="${mode}" type="number" inputmode="decimal" min="${c.min}" max="${hi}" step="${c.step}" value="${esc(sv)}" ${final?'disabled':''}></div>
         <div class="field" style="flex:1 1 280px"><label for="${pre}jf-${esc(e.id)}">Feedback for the entrant${mode?' (optional)':''}</label><textarea id="${pre}jf-${esc(e.id)}" data-jf="${esc(e.id)}" data-jm="${mode}" rows="${mode?2:3}" maxlength="5000" ${final?'disabled':''}>${esc(fb)}</textarea></div>
         <button class="btn" data-act="jsave" data-e="${esc(e.id)}" data-jm="${mode}" ${final?'disabled':''}>${saved?'Update':'Save score'}</button>
         ${saved&&!final?(()=>{const k='jdel:'+e.id+'__'+jk;return `<button class="btn ghost danger ${S.confirm===k?'armed':''}" data-act="jdel" data-e="${esc(e.id)}" data-jm="${mode}">${S.confirm===k?'Tap again to remove':'Remove score'}</button>`;})():''}</div></div>`;}).join('');
@@ -1879,12 +1900,15 @@ document.addEventListener('input',e=>{const t=e.target;
   if(t.dataset&&t.dataset.js){const d=draftsFor(t.dataset.jm);(d[t.dataset.js]||(d[t.dataset.js]={})).score=t.value;}
   else if(t.dataset&&t.dataset.jf){const d=draftsFor(t.dataset.jm);(d[t.dataset.jf]||(d[t.dataset.jf]={})).fb=t.value;}});
 document.addEventListener('change',e=>{const t=e.target;
-  if(t.dataset&&t.dataset.js&&t.value!==''){const c=asCfg(T()); let v=snapQ(+t.value); v=Math.min(c.max,Math.max(c.min,v)); t.value=v.toFixed(2); const d=draftsFor(t.dataset.jm);(d[t.dataset.js]||(d[t.dataset.js]={})).score=t.value;}
+  if(t.dataset&&t.dataset.js&&t.value!==''){const c=asCfg(T()); const v=snapScore(+t.value,c,S.as.entries.find(x=>x.id===t.dataset.js)); t.value=v.toFixed(2); const d=draftsFor(t.dataset.jm);(d[t.dataset.js]||(d[t.dataset.js]={})).score=t.value;}
   else if(t.id==='asProxy'){S.as.proxyJ=t.value||null; delete S.as.last.proxy; render();}
   else if(t.dataset&&t.dataset.asork!==undefined){const raw=t.value.trim(), id=parseOrk(raw); if(raw&&!id){toast('That doesn’t look like an ORK profile link or ID.');return;} setEntryOrk(t.dataset.asork,id||null);}
   else if(t.dataset&&t.dataset.assub){w(()=>S.db.doc('entries/'+t.dataset.assub).update({sub:t.value}));}
   else if(t.id==='asLive'){w(()=>S.db.doc('tournaments/'+S.tid).update({'as.live':t.checked}));}
   else if(t.id==='asOpen'){w(()=>S.db.doc('tournaments/'+S.tid).update({signupsOpen:t.checked}));}
+  else if(t.id==='asStep'){if(T()?.status==='final'){toast('Reopen the event to change its increments.');return;} const v=+t.value; w(()=>S.db.doc('tournaments/'+S.tid).update({'as.step':STEPS.includes(v)?v:0.01}));}
+  else if(t.dataset&&t.dataset.aslegal){const v=t.value==='yes'?true:t.value==='no'?false:null; w(()=>S.db.doc('entries/'+t.dataset.aslegal).update({legal:v}));}
+  else if(t.id==='asFmt'){if(T()?.status==='final'){toast('Reopen the event to change its judging.');return;} w(()=>S.db.doc('tournaments/'+S.tid).update({'as.fmt':JFMT[t.value]?t.value:'5'}));}
   else if(['asMin','asMax','asTop','asThr'].includes(t.id)){asSaveSettings();}
 });
 async function asSaveSettings(){const t=T(), c=asCfg(t);
@@ -1899,10 +1923,10 @@ function renderASBoard(){
   const st=asStandings(avg), N=c.topN;
   let rank=0,prev=null;
   const rows=st.filter(p=>p.counted).map((p,i)=>{if(p.total!==prev){rank=i+1;prev=p.total;}
-    return `<tr class="${rank===1?'r1':''}"><td class="rank">${rank}</td><td class="fp"><b>${esc(p.name)}</b><small>${esc(p.park||'')}${p.orkId?' · '+orkLink(p.orkId):''}</small></td><td class="n">${p.entries}</td><td class="n">${p.counted} of ${N}</td><td class="n">${p.counted?f2(p.total/p.counted):'—'}</td><td class="n total">${f2(p.total)}</td></tr>`;}).join('');
-  const catCards=AS_CATS.map(cat=>{const subs=cat.subs.map(([k,n])=>({k,n,list:S.as.entries.filter(e=>e.sub===k&&avg[e.id]).sort((a,b)=>avg[b.id].a-avg[a.id].a)})).filter(x=>x.list.length);
+    return `<tr class="${rank===1?'r1':''}"><td class="rank">${rank}</td><td class="fp"><b>${esc(p.name)}</b><small>${esc(p.park||'')}${p.orkId?' · '+orkLink(p.orkId):''}</small></td><td class="n">${p.entries}</td><td class="n">${p.counted} of ${N}</td><td class="n">${p.counted?f2(p.avg):'—'}</td><td class="n total">${f2(p.total)}</td></tr>`;}).join('');
+  const catCards=AS_CATS.map(cat=>{const subs=cat.subs.map(([k,n])=>({k,n,list:S.as.entries.filter(e=>e.sub===k&&avg[e.id]).sort((a,b)=>eScore(avg[b.id])-eScore(avg[a.id]))})).filter(x=>x.list.length);
     if(!subs.length) return '';
-    return `<div class="panel"><h3 style="margin-bottom:8px">${esc(cat.n)}</h3>${subs.map(s=>`<div style="margin-bottom:10px"><div class="lbl">${esc(s.n)}</div>${s.list.map((e,i)=>`<div class="pl" style="margin:4px 0">${i<3?`<span class="medal m${i+1}">${i+1}</span>`:`<span class="medal" style="background:var(--line);color:var(--ink)">${i+1}</span>`}<span class="nm"><b>${esc(e.title)}</b> <small class="muted">${esc(e.name)}</small></span><span class="pts" title="Average ${f2(avg[e.id].a)} × ${COMBINE}">${f2(eScore(avg[e.id]))}</span></div>`).join('')}</div>`).join('')}</div>`;}).join('');
+    return `<div class="panel"><h3 style="margin-bottom:8px">${esc(cat.n)}</h3>${subs.map(s=>`<div style="margin-bottom:10px"><div class="lbl">${esc(s.n)}</div>${s.list.map((e,i)=>`<div class="pl" style="margin:4px 0">${i<3?`<span class="medal m${i+1}">${i+1}</span>`:`<span class="medal" style="background:var(--line);color:var(--ink)">${i+1}</span>`}<span class="nm"><b>${esc(e.title)}</b> <small class="muted">${esc(e.name)}</small></span><span class="pts" title="Average ${f2(avg[e.id].a)}">${f2(eScore(avg[e.id]))}</span></div>`).join('')}</div>`).join('')}</div>`;}).join('');
   const scored=S.as.entries.filter(e=>asAverages()[e.id]).length, k='asfin:'+S.tid, rk='asreopen:'+S.tid;
   const finBar=!S.isMarshal?'':final?`<div class="banner m-only"><span><b>Final results.</b> Entrants can now open their private feedback links.</span><button class="btn sm ghost ${S.confirm===rk?'armed':''}" data-act="asReopen">${S.confirm===rk?'Tap again to reopen':'Reopen event'}</button></div>`
     :`<div class="panel m-only"><div class="row" style="justify-content:space-between;align-items:center"><div><h2 style="margin:0 0 4px">Finalize event</h2><p class="foot" style="margin:0">${scored} of ${S.as.entries.length} entries have at least one score. Finalizing locks scoring, closes entries, and publishes each entrant’s scores and feedback to their private link.</p></div>
@@ -1911,11 +1935,13 @@ function renderASBoard(){
       <div class="field" style="flex:0 1 120px"><label for="asMin">Lowest</label><input id="asMin" type="number" step="0.01" value="${c.min}"></div>
       <div class="field" style="flex:0 1 120px"><label for="asMax">Highest</label><input id="asMax" type="number" step="0.01" value="${c.max}"></div>
       <div class="field" style="flex:0 1 170px"><label for="asTop">Categories counted</label><input id="asTop" type="number" min="1" max="36" value="${c.topN}"></div>
-      <div class="field" style="flex:0 1 200px"><label for="asThr">Award threshold</label><input id="asThr" type="number" step="0.01" value="${c.thr}"></div></div>
+      <div class="field" style="flex:0 1 200px"><label for="asThr">Award threshold</label><input id="asThr" type="number" step="0.01" value="${c.thr}"></div>
+      <div class="field" style="flex:0 1 300px"><label for="asFmt">Judge type</label><select id="asFmt" ${final?'disabled':''}>${Object.entries(JFMT).map(([k,f])=>`<option value="${k}" ${k===c.fmt?'selected':''}>${f.label}</option>`).join('')}</select></div>
+      <div class="field" style="flex:0 1 220px"><label for="asStep">Score increments</label><select id="asStep" ${final?'disabled':''}>${STEPS.map(v=>`<option value="${v}" ${v===c.step?'selected':''}>${stepLabel(v)}</option>`).join('')}</select></div></div>
     <div class="checks" style="margin:12px 0"><label><input type="checkbox" id="asOpen" ${t.signupsOpen!==false?'checked':''}> Accept entries</label><label><input type="checkbox" id="asLive" ${c.live?'checked':''}> Show scores to everyone before finalizing</label></div>
     <button class="btn danger ${S.confirm==='asdelT:'+S.tid?'armed':''}" data-act="asDelT">${S.confirm==='asdelT:'+S.tid?'Tap again to delete everything':'Delete event'}</button></div>`;
   const board=show?`<div class="panel"><h2>Dragonmaster standings</h2>${rows?`<div class="scroll"><table><thead><tr><th>#</th><th>Player</th><th class="n">Entries</th><th class="n">Counted</th><th class="n" title="Score divided by the number of sub-categories counted">Average</th><th class="n">Score</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="none">No scores yet.</p>'}
-      <p class="foot">Entry score = its judges’ scores added together: with 5 judges, the highest and lowest are dropped and the middle three are added. With another number of judges, their average is scaled to three judges so every entry is on the same footing. A player’s Score = their best entry score in each sub-category, top ${N} sub-categories, added together. Average = Score ÷ Counted.${!final&&S.isMarshal&&!c.live?' Only marshals see this until you finalize.':''}</p></div>`
+      <p class="foot">Judging: ${esc(JFMT[c.fmt].label)}. Entry score = the three counted judges’ scores added together; a judge who hasn’t scored yet counts as 0. Score = a player’s best entry score in each sub-category, top ${N} sub-categories, added together. Average = the average of those counted entries’ averages (each entry’s counted scores ÷ 3).${!final&&S.isMarshal&&!c.live?' Only marshals see this until you finalize.':''}</p></div>`
     :`<div class="panel"><h2>Scores are revealed at court</h2><p class="muted" style="margin:0">The standings appear here when the A&amp;S Crat finalizes the event.</p></div>`;
   setHtml($('#as-asboard'),`<div class="stack">${finBar}${board}${show?`<div class="bgrid">${catCards}</div>`:''}${settings}</div>`,'board');
 }
@@ -1971,7 +1997,7 @@ Object.assign(H2,{
   copyfb:()=>{const i=$('#fbUrl'); if(!i) return; try{navigator.clipboard.writeText(i.value).then(()=>toast('Link copied.'),()=>{i.select();toast('Select the link and copy it.');});}catch(e){i.select();}},
   jsave:async ds=>{const m=ds.jm||'', e=S.as.entries.find(x=>x.id===ds.e), j=m?S.as.judges.find(x=>x.id===S.as.proxyJ):S.as.myJudge; if(!e||!j) return;
     const c=asCfg(T()), jk=jKey(j), pre=m?'p':'';
-    const inp=$('#'+pre+'js-'+CSS.escape(ds.e)), fb=$('#'+pre+'jf-'+CSS.escape(ds.e)); const v=inp?snapQ(+inp.value):NaN;
+    const inp=$('#'+pre+'js-'+CSS.escape(ds.e)), fb=$('#'+pre+'jf-'+CSS.escape(ds.e)); const v=inp&&inp.value!==''?snapScore(+inp.value,c,e):NaN;
     if(!inp||inp.value===''||!(v>=c.min&&v<=c.max)){toast(`Enter a score from ${c.min} to ${c.max}.`);return;}
     const data={tid:S.tid,eid:e.id,judge:jk,score:v,feedback:(fb?fb.value:'').slice(0,5000),at:Date.now()};
     if(m) data.by=myEmail();
@@ -2009,7 +2035,7 @@ Object.assign(H2,{
       const c=asCfg(t); let b=S.db.batch(), n=0; const flush=async()=>{await b.commit(); b=S.db.batch(); n=0;};
       for(const e of S.as.entries){const key=kmap[e.id]; if(!key) continue; const sc=scoresFor(e.id).sort((a,b)=>(a.at||0)-(b.at||0));
         b.set(S.db.doc('feedback/'+key),{tid:t.id,eid:e.id,event:t.name,date:t.date||'',park:t.park||'',name:e.name,title:e.title,sub:e.sub,min:c.min,max:c.max,
-          avg:avg[e.id]?avg[e.id].a:null,trimmed:!!(avg[e.id]&&avg[e.id].trim),judges:sc.map((s,i)=>({label:'Judge '+(i+1),score:s.score,feedback:s.feedback||''})),publishedAt:Date.now()});
+          avg:avg[e.id]?avg[e.id].a:null,score:avg[e.id]?eScore(avg[e.id]):null,fmt:c.fmt,trimmed:!!(avg[e.id]&&avg[e.id].trim),judges:sc.map((s,i)=>({label:'Judge '+(i+1),score:s.score,feedback:s.feedback||''})),publishedAt:Date.now()});
         if(++n>=400) await flush();}
       b.set(S.db.doc('asResults/'+t.id),{avg,updatedAt:Date.now(),final:true}); await b.commit();
       await w(()=>S.db.doc('tournaments/'+t.id).update({status:'final',finalizedAt:Date.now(),signupsOpen:false}));
@@ -2055,7 +2081,7 @@ async function showFeedback(){
     const f=d.data();
     box.innerHTML=`<div class="panel"><div class="eyebrow">${esc(f.event)} · ${esc(longDateT(f.date))}${f.park?' · '+esc(f.park):''}</div>
       <h2 style="margin:6px 0">${esc(f.title)}</h2><p class="muted" style="margin:0 0 12px">${esc(f.name)} · ${esc(SUB[f.sub]?.n||f.sub)}</p>
-      <div class="tiles">${tile('Entry score',f.avg!=null?f2(f.avg*COMBINE):'—',`three judges combined${f.trimmed?' · highest and lowest dropped':''}`)}${tile('Average score',f.avg!=null?f2(f.avg):'—',`out of ${f.max}`)}${tile('Judges',(f.judges||[]).length)}</div>
+      <div class="tiles">${tile('Entry score',f.score!=null?f2(f.score):f.avg!=null?f2(f.avg*3):'—',`three counted judges added together${f.fmt&&JFMT[f.fmt]?' · '+esc(JFMT[f.fmt].label):''}`)}${tile('Average score',f.avg!=null?f2(f.avg):'—',`out of ${f.max}`)}${tile('Judges',(f.judges||[]).length)}</div>
       ${(f.judges||[]).map(j=>`<div class="entry"><div class="row" style="justify-content:space-between"><b>${esc(j.label)}</b><span class="scorepill done">${f2(j.score)}</span></div>${j.feedback?`<div class="wu">${esc(j.feedback)}</div>`:'<span class="muted">No written feedback.</span>'}</div>`).join('')}
       <p class="foot">Judges are shown by number, not name. Thank you for entering.</p></div>`;
   }catch(err){box.innerHTML='<div class="panel"><p class="muted" style="margin:0">Couldn’t load your feedback. Check your connection and reload.</p></div>';}
