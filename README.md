@@ -19,6 +19,58 @@ It's a single web page backed by a free Google Firebase database. Setup takes ab
 | `_redirects` | Tells Netlify to relay ORK lookups, since the ORK won't answer other websites directly. Keep it in the folder. |
 | `firebase.json` | Only needed if you host with Firebase Hosting instead of Netlify. |
 
+## Setup
+
+### 1. Create a Firebase project
+1. Go to <https://console.firebase.google.com> and sign in with the Google account that should own Field Marshal.
+2. Click **Create a project**. Name it something like `field-marshal`. You can turn Google Analytics off.
+3. Stay on the free **Spark** plan. A tournament uses a tiny fraction of its limits.
+
+### 2. Connect the app to the project
+1. On the project's home page, click the **Web** icon (`</>`) to add a web app. Name it `Field Marshal`. Skip "Firebase Hosting" for now.
+2. Firebase shows a block of settings that starts with `const firebaseConfig = {`.
+3. Open `config.js` in any text editor (Notepad or TextEdit is fine). Replace everything between the `{` and `}` with the values Firebase showed you, then save.
+
+### 3. Turn on the database
+1. In the left menu choose **Build → Firestore Database → Create database**.
+2. Pick a location near you (for example `us-west2`), then choose **Start in production mode**.
+
+### 4. Add the security rules
+1. In Firestore, open the **Rules** tab.
+2. Delete what's there, paste in everything from `firestore.rules`, and click **Publish**.
+
+### 5. Turn on Google sign-in
+1. Choose **Build → Authentication → Get started**.
+2. Under **Sign-in method**, pick **Google**, switch it on, choose a support email, and save.
+
+### 6. Make yourself the first marshal
+1. Go back to **Firestore Database → Data** and click **Start collection**.
+2. Collection ID: `marshals`
+3. Document ID: your Google email address, **all lowercase** (for example `antifreke@gmail.com`).
+4. Add one field: name `email`, type `string`, value your email. Click **Save**.
+
+After this you can add every other marshal from inside the app.
+
+### 7. Put the app online (Netlify, free, from GitHub)
+Field Marshal now includes a small Netlify Function that talks to the ORK with Field Marshal's ORK API key, and Netlify Drop (drag-and-drop) doesn't deploy functions. So:
+1. Put this whole folder in a GitHub repository, replacing every file (including the `netlify` and `tests` folders).
+2. In Netlify, link the existing site to that repo (**Site configuration → Build & deploy → Link repository**) or create a site with **Add new site → Import from Git**. `netlify.toml` already sets everything up.
+3. Add `ORK_API_KEY` under **Site configuration → Environment variables** (secret, Functions scope). See "ORK access" below.
+
+When you change a file later, commit the new files to GitHub and Netlify redeploys on its own.
+
+### 8. Allow that web address to sign in
+1. In Firebase, go to **Authentication → Settings → Authorized domains → Add domain**.
+2. Add your Netlify address (for example `field-marshal-stone-rivers.netlify.app`).
+
+### 9. First sign-in and import
+1. Open your Netlify address and click **Sign in**.
+2. On the **Signups** tab, scroll to **Field Marshal settings**.
+3. Under **Import a Field Marshal backup**, choose `field-marshal-backup.json` to bring over the tournaments, fighters and results from the Claude version. It includes the sample "Harvest Tourney"; delete that from its Tournament settings when you don't need it.
+4. Click **Refresh park rosters from the ORK** to load persona suggestions.
+
+### 10. Link it from the Wix site
+In the Wix editor, add a button or menu item that links to your Netlify address. Use a link rather than embedding the page in a Wix frame, because Google sign-in doesn't work reliably inside embedded frames.
 
 ## Running a tournament
 
@@ -121,3 +173,17 @@ To use your own image for a kingdom instead, put it in a `logos` folder next to 
 - Entrants can choose their park first: a list of that park's ORK players appears, and picking their name fills in their ORK ID. If the saved list doesn't have that park, the app asks the ORK for it directly.
 - "Find me in the ORK" ranks matches from the chosen park first, then the event's kingdom.
 - Kingdom/GetParks was added to the relay allowlist in netlify/functions/ork-api.mjs.
+
+## My record
+- The **My record** button next to Sign in shows a person their own results: fighting, Dragonmaster (entries, scores, judges' feedback without names) and Battle of the Bards.
+- The first time, they link their ORK profile by signing in with their ORK username and password. The password goes to the ORK only; Field Marshal saves just the ORK ID it returns (users/{uid} + orkClaims/{orkId}). One Google account per ORK ID.
+- Marshals can look up any player from the same screen, and release an ORK link that was claimed by mistake.
+- Judges' feedback for My record is stored per entry in `pfb/{entryId}`, readable only by the person who linked that ORK ID and by marshals. It's written when a marshal or judge opens a finalized event (or one with live scores on). Entries without an ORK ID don't appear in anyone's record; their entrant still has the private feedback link.
+- Requires the latest firestore.rules (users, orkClaims, pfb).
+
+## Home, Events and QR registration
+- Opening the site without a tournament link shows **Home**: Join an Event (active events and their tournaments), Start an Event (marshals), and Past events with winners. The **Home** button in the header returns there.
+- Active = a tournament that isn't finalized and is dated within the last 7 days (or later), or an event with no tournaments yet that hasn't ended.
+- Marshals create an **event** (name, kingdom, dates, park) under Start an Event, then add its War, Dragonmaster and Bardic tournaments from the event's row. The New tournament form also has an **Event** picker; events that already have a tournament of another type are listed first as recommended. An existing tournament can be linked from the Event picker under its heading.
+- Every tournament has a **Registration QR** code (opens automatically after you create one; also under the tournament heading and on Home). It links to that tournament's normal registration: the fighting signup request, the Dragonmaster entry form, or the bard signup. Download or print it for the gate.
+- Requires the latest firestore.rules (events). QR codes are made in the page by qrcode-generator (MIT, Kazuhiko Arase), no outside service.
