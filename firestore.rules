@@ -107,8 +107,8 @@ service cloud.firestore {
         && d.name is string && d.name.size() > 0 && d.name.size() <= 80
         && (!('park' in d) || (d.park is string && d.park.size() <= 60))
         && (!('orkId' in d) || d.orkId == null || (d.orkId is string && d.orkId.size() <= 12))
-        && d.divs is list && d.divs.size() > 0 && d.divs.size() <= 5
-        && d.divs.hasOnly(['single', 'board', 'flo', 'heavy', 'open'])
+        && d.divs is list && d.divs.size() > 0 && d.divs.size() <= 6
+        && d.divs.hasOnly(['single', 'board', 'flo', 'heavy', 'open', 'archery'])
         && d.at is number
         && exists(/databases/$(database)/documents/tournaments/$(d.tid))
         && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('signupsOpen', true) == true;
