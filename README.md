@@ -187,3 +187,17 @@ To use your own image for a kingdom instead, put it in a `logos` folder next to 
 - Marshals create an **event** (name, kingdom, dates, park) under Start an Event, then add its War, Dragonmaster and Bardic tournaments from the event's row. The New tournament form also has an **Event** picker; events that already have a tournament of another type are listed first as recommended. An existing tournament can be linked from the Event picker under its heading.
 - Every tournament has a **Registration QR** code (opens automatically after you create one; also under the tournament heading and on Home). It links to that tournament's normal registration: the fighting signup request, the Dragonmaster entry form, or the bard signup. Download or print it for the gate.
 - Requires the latest firestore.rules (events). QR codes are made in the page by qrcode-generator (MIT, Kazuhiko Arase), no outside service.
+
+## Round Robin, Swiss, Morrigan, Order of the Hunter, more kingdoms
+- **Formats:** New tournament → Format now also offers **Round Robin** (everyone fights everyone once; a fighter rests each round when the count is odd) and **Swiss** (each round pairs fighters with the same record, avoiding rematches; Field Marshal suggests the number of rounds and you can change it). Both are run on the Brackets tab: tap each bout's winner; for Swiss, tap "Pair round N" when a round is done. Most wins takes 1st/2nd/3rd (5/3/1 points). A Swiss bye counts as a win; a Round Robin bye is a rest. Ties for a top-three place show a **fight-off** box: tap the fight-off winner until the order is settled. Straight wins count toward Warrior like pit and bracket wins.
+- **Morrigan:** a fighting tournament for women and non-male fighters. Pick it as the Type in New tournament, or "Morrigan" under Add a tournament on Home. Works like any fighting tournament; its signup form and heading say who it's open to. No one is asked for or stores gender.
+- **Order of the Hunter:** for tournaments with Archery, the Awards tab lists the Archery 1st/2nd/3rd as Hunter candidates (no level; you decide). "Recommend in ORK" copies the reason and opens their ORK profile, for kingdoms that have the award. Mark Submitted or Dismiss to keep track.
+- **Kingdoms:** Northern Lights (ORK kingdom 20) and the Crystal Groves (17) are added. Their park lists load from the ORK; pick the tournament level by hand. Add their marshals with those kingdoms ticked.
+
+## Dragonmaster judging updates
+- Judges no longer see who entered an item: their score cards show only the item, category and writeup, and the public Entries list hides entrants until the event is finalized. Marshals still see names (including when entering paper scores).
+- Judges can **Lock** a saved score so it can't be changed by accident; **Unlock** to edit again.
+- **Lock judging** (Scores tab → Event settings) stops judges from changing scores without finalizing. Marshals can still enter or fix scores, e.g. from paper sheets.
+- Column headings on the Scores standings and Judging → Scoring progress tables sort the table; tap again to reverse.
+- **Standings total** (Event settings): Westmarch adds up the averages of each player's counted entries (5.00 + 4.69 + 4.58 = 14.27); the other option adds up their combined scores. Westmarch events default to the Westmarch method. "Categories counted" sets how many entries count.
+- Requires the latest firestore.rules (score lock and judging lock).

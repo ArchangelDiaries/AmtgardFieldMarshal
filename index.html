@@ -335,7 +335,7 @@ body:not(.anymarshal) .mk-only{display:none!important}
       <div class="row">
         <div class="field" style="flex-basis:200px"><label for="tKingdom">Kingdom</label><select id="tKingdom"></select></div>
         <div class="field" style="flex-basis:260px"><label for="tName">Name</label><input id="tName" required placeholder="Midreign Tourney"></div>
-        <div class="field"><label for="tFormat">Format</label><select id="tFormat"><option value="pit">Pool and Bracket</option><option value="elim">Bracket</option></select></div>
+        <div class="field"><label for="tFormat">Format</label><select id="tFormat"><option value="pit">Pool and Bracket</option><option value="elim">Bracket</option><option value="rr">Round Robin</option><option value="swiss">Swiss</option></select></div>
         <div class="field"><label for="tDate">Date</label><input id="tDate" type="date" required></div>
         <div class="field"><label for="tPark">Hosting park</label><input id="tPark" list="parks" value="Siar Geata"></div>
         <div class="field"><label for="tLevel">Tournament level</label><select id="tLevel"><option value="shire">Shire</option><option value="barony">Barony</option><option value="duchy" selected>Duchy</option><option value="kingdom">Kingdom</option><option value="major">Major kingdom (Weaponmaster, Warmaster, Olympiad)</option></select></div>
@@ -380,7 +380,7 @@ body:not(.anymarshal) .mk-only{display:none!important}
       <div class="panel p-only" id="rqPanel">
         <h2>Sign up to fight</h2>
         <div id="rqClosed" class="none" hidden>Signups for this tournament are closed. See a marshal at the field.</div>
-        <form id="rqForm" class="form">
+        <form id="rqForm" class="form"><p id="rqMorr" class="banner" hidden style="margin:0"><span><b>Morrigan tournament:</b> open to women and non-male fighters.</span></p>
           <div class="row">
             <div class="field" style="flex-basis:240px"><label for="rqName">Your persona</label><input id="rqName" autocomplete="off" required placeholder="Your Amtgard name"></div>
             <div class="field"><label for="rqPark">Home park</label><input id="rqPark" list="parks" autocomplete="off" placeholder="Choose your park to find yourself"></div>
@@ -455,6 +455,8 @@ const KINGDOMS={
       [1055,'Dragonvale','duchy'],[132,"Wyvern's Spur",'duchy'],[658,'Belial Peaks','barony'],[765,'Clockwork Spires','barony'],[44,'Crimson Wood','barony'],[128,'Seven Sleeping Dragons','barony'],
       [236,"Thor's Refuge",'barony'],[814,'Valonde','barony'],[84,'Wavehaven','barony'],[441,"Aegir's Hall",'shire'],[872,'Boarhaven','shire'],[192,'Fal Dare','shire'],
       [1014,'Mystic Mountains','shire'],[476,'Skyfire Bay','shire'],[525,'Stonehearth','shire'],[1126,'Watchers Keep','shire'],[1068,'Wildmire','shire']]},
+  northernlights:{k:'northernlights',id:20,n:'Kingdom of Northern Lights',eyebrow:'Kingdom of Northern Lights',home:'',parks:[]},
+  crystalgroves:{k:'crystalgroves',id:17,n:'Kingdom of the Crystal Groves',eyebrow:'Kingdom of the Crystal Groves',home:'Blackthorne',parks:[[638,'Blackthorne','']]},
   neverwinter:{k:'neverwinter',id:5,n:'Kingdom of Neverwinter',eyebrow:'Kingdom of Neverwinter',home:'Falling Fire',
     parks:[[630,'Emerald Cove','duchy'],[75,'Falling Fire','duchy'],[882,'Murk Bottom','duchy'],[656,'Shifting Tides','duchy'],[139,'Darkwater (FL)','barony'],[930,'Dragons Crossing','barony'],
       [708,'Shadowcrest','barony'],[499,'Crest Haven','shire'],[1084,'Mystic Oaks','shire'],[353,'Twilight Eclipse','shire'],[1099,"Valkyrie's Reach",'shire']]}};
@@ -473,8 +475,14 @@ const tKingdom=t=>(t&&KINGDOMS[t.kingdom])?t.kingdom:'westmarch';
 const parkLevel=(park,k)=>{const p=(KINGDOMS[k]||KINGDOMS.westmarch).parks.find(x=>x[1]===park);return p?p[2]:null;};
 const inKf=t=>!!t&&(S.kf==='all'||tKingdom(t)===S.kf);
 const allowedKingdoms=()=>{const ks=typeof myKs==='function'?myKs():['*'];return ks.includes('*')?Object.keys(KINGDOMS):ks.filter(k=>KINGDOMS[k]);};
-function fillParks(k){const K=KINGDOMS[k]||KINGDOMS.westmarch, dl=$('#parks'); if(!dl||dl.dataset.k===K.k) return; dl.dataset.k=K.k;
-  dl.innerHTML=K.parks.map(p=>`<option value="${esc(p[1])}"></option>`).join('');}
+/* Park suggestions: the built-in list, plus the kingdom's current parks from the ORK (web app) — kingdoms
+   added without a built-in list (Northern Lights, Crystal Groves) get theirs that way. */
+function fillParks(k){const K=KINGDOMS[k]||KINGDOMS.westmarch, dl=$('#parks'); if(!dl) return;
+  const names=[...new Set([...K.parks.map(p=>p[1]),...((typeof S!=='undefined'&&S.orkParks&&S.orkParks[K.k])||[]).map(p=>p.n).filter(Boolean)])].sort((a,b)=>a.localeCompare(b));
+  const sig=K.k+'|'+names.length; if(dl.dataset.k===sig) return; dl.dataset.k=sig;
+  dl.innerHTML=names.map(n=>`<option value="${esc(n)}"></option>`).join('');
+  if(typeof kingdomParks==='function'&&typeof S!=='undefined'&&S.orkParks&&!S.orkParks[K.k]&&!(S.parkLoad=S.parkLoad||{})[K.k]){S.parkLoad[K.k]=true;
+    kingdomParks(K.k).then(()=>fillParks(k)).catch(()=>{});}}
 /* Links with FORK (event management): FORK writes t.fork = {eventId, name, url} on tournaments it creates,
    and opens a tournament directly with ?t=<tournament id>&tab=<tab>. */
 const forkLink=t=>{const f=t&&t.fork; if(!f||!f.name) return '';
@@ -526,7 +534,7 @@ function bracket(tid,d){
   const s1=m('s1',s[0]||null,s[3]||null), s2=m('s2',s[1]||null,s[2]||null);
   return {seeds:s,s1,s2,f:m('f',s1.nextW,s2.nextW),t:m('t',s1.nextL,s2.nextL)};
 }
-function places(tid,d){if(isElimT(tid)) return elimPlaces(tid,d); const B=bracket(tid,d); if(!B) return [null,null,null]; return [B.f.win,B.f.lose,B.t.win];}
+function places(tid,d){if(isElimT(tid)) return elimPlaces(tid,d); if(isLgT(tid)) return lgPlaces(tid,d); const B=bracket(tid,d); if(!B) return [null,null,null]; return [B.f.win,B.f.lose,B.t.win];}
 function timerOf(tid,d){
   const t=tByid(tid); const len=(Number(t?.pitMin)||10)*60000; const tm=divDoc(tid,d)?.timer;
   if(!tm) return {ms:len,running:false,len};
@@ -585,6 +593,7 @@ function recsFor(tid){
     (su.divs||[]).forEach(d=>{
       if(DIV[d]&&DIV[d].noWarrior) return;
       if(isElimT(tid)){const E=elim(tid,d); const b=E?elimRecord(E,f).best:0; if(b>=3) ev.push({lvl:Math.min(10,Math.floor((b-1)/2)),why:`${b} straight bracket wins in ${DIV[d].n}`});}
+      else if(isLgT(tid)){const g=lgOf(tid,d); const b=g?lgRecord(g,f).best:0; if(b>=3) ev.push({lvl:Math.min(10,Math.floor((b-1)/2)),why:`${b} straight ${tFormat(t)==='swiss'?'Swiss':'round robin'} wins in ${DIV[d].n}`});}
       else if(!isTally(tid,d)){const b=pitStats(tid,d).map[f]?.best||0; if(b>=3) ev.push({lvl:Math.min(10,Math.floor((b-1)/2)),why:`${b} straight pit wins in ${DIV[d].n}`});}
       places(tid,d).forEach((p,i)=>{if(p===f) ev.push({lvl:PLACE_LVL[lv][i],why:`${PLACE_TXT[i]} in ${DIV[d].n} (${LEVEL_N[lv]} tournament)`});});
     });
@@ -602,6 +611,23 @@ function recText(r){
 }
 const ordinalN=n=>{const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
 const longDateT=d=>{if(!d)return '';const [y,m,dd]=d.split('-').map(Number);return new Date(y,m-1,dd).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});};
+/* Order of the Hunter: the Archery division's 1st, 2nd and 3rd are flagged as candidates, with no level;
+   the marshal decides the level. It's a kingdom award in some kingdoms, so it's recommended through the
+   ORK's own Recommend form (copy the reason, open their profile). Status: recs/{tid}__{fid}__hunter. */
+function hunterCands(tid){const t=tByid(tid); if(!t||!offered(t).some(d=>d.k==='archery')) return null;
+  return places(tid,'archery').map((f,i)=>f?{fid:f,place:i}:null).filter(Boolean);}
+function hunterText(c){const t=T(); const where=t?`${t.name} (${longDateT(t.date)}${t.park?', '+t.park:''})`:'this tournament';
+  return `Recommended for the Order of the Hunter. At ${where}: ${PLACE_TXT[c.place]} place in Archery (${LEVEL_N[tLevel(t)]||''} tournament). Submitted from Field Marshal.`;}
+function hunterPanel(tid){const cs=hunterCands(tid); if(!cs) return '';
+  const rows=cs.length?cs.map(c=>{const id=tid+'__'+c.fid+'__hunter', st=S.recs[id]?.status, o=fork(c.fid);
+    return `<tr><td class="fp"><b>${esc(fname(c.fid))}</b><small>${esc(fpark(c.fid))}${o?' · '+orkLink(o):' · No ORK ID'}</small></td><td><b>${PLACE_TXT[c.place]}</b> in Archery</td>
+      <td><details class="rtext"><summary>Reason text for the ORK</summary><textarea readonly rows="3" aria-label="Hunter recommendation reason for ${esc(fname(c.fid))}">${esc(hunterText(c))}</textarea></details></td>
+      <td>${st==='submitted'?'<span class="st done">Submitted</span>':st==='dismissed'?'<span class="st met">Dismissed</span>':'<span class="st rec">Candidate</span>'}
+        <div class="acts" style="margin-top:6px">${o?`<a class="btn sm" href="${ORK_URL(o)}" target="_blank" rel="noopener" data-act="hunterrec" data-f="${esc(c.fid)}" data-p="${c.place}">Recommend in ORK</a>`:''}
+        <button class="btn sm ghost ${st==='submitted'?'on':''}" data-act="hrec" data-f="${esc(c.fid)}" data-v="submitted">Submitted</button><button class="btn sm ghost ${st==='dismissed'?'on':''}" data-act="hrec" data-f="${esc(c.fid)}" data-v="dismissed">Dismiss</button></div></td></tr>`;}).join('')
+    :'<tr><td colspan="4" class="none">Archery’s 1st, 2nd and 3rd show up here once they’re decided.</td></tr>';
+  return `<div class="panel"><h2>Order of the Hunter candidates</h2><div class="scroll"><table><thead><tr><th>Archer</th><th>Placed</th><th>Reason</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="foot">The top three in Archery. You choose the level. The Order of the Hunter is a kingdom award in some kingdoms; where yours has it, “Recommend in ORK” copies the reason and opens their ORK profile so you can file it with the ORK’s Recommend form.</p></div>`;}
 function renderAwards(){
   const t=T(), tid=S.tid, recs=recsFor(tid);
   const stTxt=r=>{const st=S.recs[tid+'__'+r.fid]?.status;
@@ -618,7 +644,7 @@ function renderAwards(){
     :'<tr><td colspan="5" class="none">No one has earned a Warrior qualification yet this tournament. Streaks of 3+ pit wins and bracket placements show up here.</td></tr>';
   const all=signupsFor(tid).map(s=>s.fid).sort((a,b)=>(warriorOf(b)?.w??-1)-(warriorOf(a)?.w??-1)||fname(a).localeCompare(fname(b)));
   const lvlList=all.length?`<div class="scroll"><table><thead><tr><th>Combatant</th><th class="n">Warrior</th><th>Last given</th></tr></thead><tbody>${all.map(f=>{const w=warriorOf(f);return `<tr><td class="fp"><b>${esc(fname(f))}</b><small>${fork(f)?orkLink(fork(f)):'No ORK ID'}</small></td><td class="n">${w?`<b>${w.w}</b>`:'<span class="muted">—</span>'}</td><td>${w?.date?esc(w.date):'<span class="muted">'+(fork(f)?'Not loaded yet':'Add ORK ID')+'</span>'}</td></tr>`;}).join('')}</tbody></table></div>`:'<p class="none">No one signed up yet.</p>';
-  $('#awardView').innerHTML=`<div class="stack"><div class="panel">
+  $('#awardView').innerHTML=`<div class="stack">${hunterPanel(tid)}<div class="panel">
     <div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:10px"><h2 style="margin:0">Order of the Warrior recommendations</h2>
       <div class="field" style="flex:0 1 220px"><label for="awLevel">This tournament counts as</label><select id="awLevel">${LEVELS.map(l=>`<option value="${l.k}" ${tLevel(t)===l.k?'selected':''}>${l.n}</option>`).join('')}</select></div></div>
     <div class="scroll"><table><thead><tr><th>Fighter</th><th>Warrior now</th><th>Qualifies for</th><th>Why</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
@@ -631,8 +657,13 @@ function renderAwards(){
 /* format 'pit'  = Pool and Bracket: timed winner-stays pit, then top 4 into a bracket (default).
    format 'elim' = Bracket Tournament: every entrant drawn into one single-elimination bracket.
    Stored on divisions/{tid}__{div}.elim = {slots:[fid|null…] (power of 2, standard seed order), seeds:{fid:n}, w:{matchId:fid}}. */
-const FORMATS=[{k:'pit',n:'Pool and Bracket',d:'Timed winner-stays pit, then the top 4 fight a bracket'},{k:'elim',n:'Bracket',d:'Every fighter in one single-elimination bracket'}];
-const tFormat=t=>t&&t.format==='elim'?'elim':'pit';
+const FORMATS=[{k:'pit',n:'Pool and Bracket',d:'Timed winner-stays pit, then the top 4 fight a bracket'},{k:'elim',n:'Bracket',d:'Every fighter in one single-elimination bracket'},
+  {k:'rr',n:'Round Robin',d:'Everyone fights everyone once; final standings decide 1st, 2nd and 3rd'},{k:'swiss',n:'Swiss',d:'Rounds pair fighters with the same record; final standings decide 1st, 2nd and 3rd'}];
+const FORMAT_HELP={pit:'Pool and Bracket: each division fights a timed winner-stays pit, then the top 4 fight a bracket.',
+  elim:'Bracket: no pit. Every fighter in a division is drawn into one single-elimination bracket; the semifinal losers fight for 3rd.',
+  rr:'Round Robin: everyone in a division fights everyone else once. Most wins takes 1st; ties for a top-three place go to a fight-off.',
+  swiss:'Swiss: each round pairs fighters with the same record, avoiding rematches. Field Marshal suggests the number of rounds; most wins takes 1st, ties go to a fight-off.'};
+const tFormat=t=>t&&['elim','rr','swiss'].includes(t.format)?t.format:'pit';
 const isElimT=tid=>tFormat(tByid(tid))==='elim';
 function seedOrder(P){let o=[1];while(o.length<P){const n=o.length*2;o=o.flatMap(x=>[x,n+1-x]);}return o;}
 function matchOf(W,id,p1,p2){let win=null,lose=null,state;
@@ -689,6 +720,9 @@ function computeSummary(tid,bl){
     if(tFormat(t)==='elim'){const E=elim(tid,d.k), pl=places(tid,d.k), rows={};
       ids.forEach(f=>{const r=E?elimRecord(E,f):{wins:0,losses:0,best:0};rows[f]={k:0,d:r.losses,b:r.best,w:r.wins,pl:pl.indexOf(f)+1};});
       out.divs[d.k]={n:ids.length,tally:false,fmt:'elim',rows}; return;}
+    if(isLgT(tid)){const g=lgOf(tid,d.k), pl=places(tid,d.k), rows={};
+      ids.forEach(f=>{const r=g?lgRecord(g,f):{w:0,l:0,best:0};rows[f]={k:0,d:r.l,b:r.best,w:r.w,pl:pl.indexOf(f)+1};});
+      out.divs[d.k]={n:ids.length,tally:false,fmt:tFormat(t),rows}; return;}
     const {map}=pitStats(tid,d.k,all.filter(b=>b.div===d.k)); const pl=places(tid,d.k); const rows={};
     new Set([...ids,...Object.keys(map)]).forEach(f=>{const m=map[f]||{};rows[f]={k:m.k||0,d:m.d||0,b:m.best||0,pl:pl.indexOf(f)+1};});
     out.divs[d.k]={n:ids.length,tally:isTally(tid,d.k),rows};});
@@ -788,9 +822,9 @@ const nkey=n=>String(n||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-');
 const pKeyOf=(ork,name)=>ork?'o'+ork:'n'+nkey(name);
 const fighterKey=fid=>pKeyOf(fork(fid),fname(fid));
 const dashShow=t=>!!t&&(t.status==='final'||!!(t.as&&t.as.live));
-function dashStand(tid){const t=tByid(tid), N=asCfg(t).topN, avg=(S.dash.asr[tid]&&S.dash.asr[tid].avg)||{}, P={};
+function dashStand(tid){const t=tByid(tid), C=asCfg(t), N=C.topN, avg=(S.dash.asr[tid]&&S.dash.asr[tid].avg)||{}, P={};
   S.dash.entries.filter(e=>e.tid===tid).forEach(e=>{const a=avg[e.id], k=pKeyOf(e.orkId,e.name); const p=P[k]||(P[k]={key:k,subs:{},entries:0}); p.entries++;
-    if(a&&a.n&&(!p.subs[e.sub]||eScore(a)>p.subs[e.sub].a)) p.subs[e.sub]={a:eScore(a),avg:a.a};});
+    if(a&&a.n&&(!p.subs[e.sub]||entryVal(a,C)>p.subs[e.sub].a)) p.subs[e.sub]={a:entryVal(a,C),avg:a.a};});
   const list=Object.values(P).map(p=>{const tops=Object.values(p.subs).sort((a,b)=>b.a-a.a), best=tops.map(x=>x.a), top=tops.slice(0,N);return {...p,counted:top.length,total:top.reduce((s,x)=>s+x.a,0),avg:top.length?top.reduce((s,x)=>s+x.avg,0)/top.length:0,best};})
     .sort((a,b)=>b.total-a.total||(b.best[0]||0)-(a.best[0]||0));
   let rank=0,prev=null; list.forEach((p,i)=>{if(!p.counted){p.place=0;return;} if(p.total!==prev){rank=i+1;prev=p.total;} p.place=rank;});
@@ -814,7 +848,7 @@ function profileHtml(p,sms,width,fbFor){
   const asEv=[...new Set(myE.map(e=>e.tid))].map(tid=>{const t=tByid(tid), show=dashShow(t), st=show?dashStand(tid):null, me=st&&st.list.find(x=>x.key===p.key), R=S.dash.asr[tid]||{};
     return {t,show,me,of:st?st.of:0,N:asCfg(t).topN,entries:myE.filter(e=>e.tid===tid).map(e=>({e,a:show&&R.avg?R.avg[e.id]:null,fb:show?fbFor(e.id):[]}))};})
     .sort((a,b)=>(a.t.date||'').localeCompare(b.t.date||''));
-  const allAvg=asEv.flatMap(v=>v.entries.map(x=>x.a&&x.a.n?eScore(x.a):null)).filter(x=>x!=null), bestEntry=allAvg.length?Math.max(...allAvg):null;
+  const allAvg=asEv.flatMap(v=>v.entries.map(x=>x.a&&x.a.n?entryVal(x.a,asCfg(v.t)):null)).filter(x=>x!=null), bestEntry=allAvg.length?Math.max(...allAvg):null;
   const asWins=asEv.filter(v=>v.me&&v.me.place===1&&v.t.status==='final').length;
   // Battle of the Bards
   const myB=S.dash.bards.filter(b=>{const t=tByid(b.tid);return isBards(t)&&inKf(t)&&pKeyOf(b.orkId,b.name)===p.key;});
@@ -856,7 +890,7 @@ function profileHtml(p,sms,width,fbFor){
       ${asEv.slice().reverse().map(v=>`<div class="asev"><div class="row" style="justify-content:space-between;align-items:baseline"><div><b>${esc(v.t.name)}</b> <span class="muted">· ${esc(longDate(v.t.date))}${v.t.park?' · '+esc(v.t.park):''}</span></div>
           <div>${!v.show?'<span class="rchip">Scores and feedback appear after the event is finalized</span>':v.me&&v.me.counted?`${v.me.place?`<b>${ordinalN(v.me.place)}</b> of ${v.of} · `:''}Score <b>${f2(v.me.total)}</b> · ${v.me.counted} of ${v.N} counted${v.t.status!=='final'?' <span class="rchip">Live</span>':''}`:'<span class="muted">Not scored yet</span>'}</div></div>
         ${v.entries.map(x=>`<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(x.e.title)}</b> <span class="rchip">${esc(SUB[x.e.sub]?.n||x.e.sub)}</span></div>
-          <span class="scorepill ${x.a&&x.a.n?'done':''}">${x.a&&x.a.n?f2(eScore(x.a)):v.show?'Not scored':'—'}</span></div>
+          <span class="scorepill ${x.a&&x.a.n?'done':''}">${x.a&&x.a.n?f2(entryVal(x.a,asCfg(v.t))):v.show?'Not scored':'—'}</span></div>
           ${x.a&&x.a.n?`<div class="meta">${x.a.n} judge${x.a.n===1?'':'s'}${x.a.trim?' · per the event’s drop rule':''} · average ${f2(x.a.a)}</div>`:''}
           ${fbList(x.fb)?`<details open><summary class="muted" style="cursor:pointer">Judges’ feedback</summary>${fbList(x.fb)}</details>`
             :x.a&&x.a.n&&x.fb===null?`<div class="meta">Judges’ feedback for this entry isn’t published yet. It appears once a marshal opens this event in Field Marshal.</div>`
@@ -912,7 +946,7 @@ function render(){
   renderAuth();
   renderHeader();
   watchBouts();
-  {const el=!!T()&&tFormat(T())==='elim'; const pb=document.querySelector('.tabs [data-tab=pits]'); if(pb) pb.hidden=el; if(el&&S.tab==='pits') S.tab='brackets';}
+  {const el=!!T()&&tFormat(T())!=='pit'; const pb=document.querySelector('.tabs [data-tab=pits]'); if(pb) pb.hidden=el; if(el&&S.tab==='pits') S.tab='brackets';}
   const has=!!T();
   $('#tabs').hidden=!has;
   $('#empty').hidden=has;
@@ -947,7 +981,7 @@ function renderHeader(){
   sel.innerHTML=shown.length?shown.map(t=>`<option value="${esc(t.id)}" ${t.id===S.tid?'selected':''}>${dot(t)} ${esc(t.name)}${t.date?' · '+esc(t.date):''}</option>`).join(''):`<option>No tournaments${S.kf!=='all'?' in '+esc(KINGDOMS[S.kf].n):''} yet</option>`;
   sel.disabled=!shown.length;
   const t=T();
-  $('#tmeta').innerHTML=t?`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${signupsFor(t.id).length}</b> fighters signed up</span><span>Format <b>${esc(FORMATS.find(f=>f.k===tFormat(t)).n)}</b></span>${tFormat(t)==='elim'?'<span>Scoring: 1st = 5 · 2nd = 3 · 3rd = 1</span>':`<span>Pits run <b>${esc(t.pitMin||10)} min</b></span><span>Scoring: kill = 1 · 1st = 5 · 2nd = 3 · 3rd = 1</span>`}`:'';
+  $('#tmeta').innerHTML=t?`${t.status==='final'?'<span class="st done">Final results</span>':''}${forkLink(t)}<span>Hosted by <b>${esc(t.park||'—')}</b></span><span><b>${signupsFor(t.id).length}</b> fighters signed up</span><span>Format <b>${esc(FORMATS.find(f=>f.k===tFormat(t)).n)}</b></span>${tFormat(t)!=='pit'?'<span>Scoring: 1st = 5 · 2nd = 3 · 3rd = 1</span>':`<span>Pits run <b>${esc(t.pitMin||10)} min</b></span><span>Scoring: kill = 1 · 1st = 5 · 2nd = 3 · 3rd = 1</span>`}`:'';
   const seenN=new Set(), opts=[];
   Object.values(S.fighters).forEach(f=>{const k=(f.name||'').toLowerCase(); if(k&&!seenN.has(k)){seenN.add(k);opts.push(`<option value="${esc(f.name)}">${esc(f.park||'')}</option>`);}});
   S.roster.players.forEach(r=>{const k=r.p.toLowerCase(); if(!seenN.has(k)){seenN.add(k);opts.push(`<option value="${esc(r.p)}">${esc(r.park)} · ORK</option>`);}});
@@ -987,7 +1021,7 @@ function renderSignups(){
   $('#tSettings').innerHTML=`<h2>Tournament settings</h2><div class="row">
     <div class="field" style="flex:0 1 220px"><label for="setLevel">Tournament level</label><select id="setLevel">${LEVELS.map(l=>`<option value="${l.k}" ${tLevel(t)===l.k?'selected':''}>${l.n}</option>`).join('')}</select></div>
     <div class="field" style="flex:0 1 220px"><label for="setFormat">Format</label><select id="setFormat">${FORMATS.map(f=>`<option value="${f.k}" ${tFormat(t)===f.k?'selected':''}>${f.n}</option>`).join('')}</select></div>
-    <div class="field" style="flex:0 1 160px" ${tFormat(t)==='elim'?'hidden':''}><label for="setMin">Pit length (min)</label><input id="setMin" type="number" min="1" max="120" value="${esc(t.pitMin||10)}"></div>
+    <div class="field" style="flex:0 1 160px" ${tFormat(t)!=='pit'?'hidden':''}><label for="setMin">Pit length (min)</label><input id="setMin" type="number" min="1" max="120" value="${esc(t.pitMin||10)}"></div>
     <button class="btn danger ${S.confirm===dk?'armed':''}" data-act="delT">${S.confirm===dk?'Tap again to delete everything':'Delete tournament'}</button></div>
     <p class="foot">Deleting removes this tournament’s signups, pit results and brackets for everyone.</p>`;
 }
@@ -1047,7 +1081,7 @@ function renderPits(){
 
 function renderBrackets(){
   const tid=S.tid;
-  $('#brView').innerHTML=isElimT(tid)?`${finalBar(tid)}<div class="stack">${offered().map(d=>elimCard(tid,d)).join('')}</div>`
+  $('#brView').innerHTML=isLgT(tid)?`${finalBar(tid)}<div class="stack">${offered().map(d=>lgCard(tid,d)).join('')}</div>`:isElimT(tid)?`${finalBar(tid)}<div class="stack">${offered().map(d=>elimCard(tid,d)).join('')}</div>`
     :`${finalBar(tid)}<div class="bgrid">${offered().map(d=>bracketCard(tid,d)).join('')}</div>`;
 }
 function bracketCard(tid,d){
@@ -1127,6 +1161,7 @@ function lockPass(){const f=isFinal();
     else if(el.dataset.locked){el.disabled=false;delete el.dataset.locked;}});}
 function divState(tid,d){const n=inDiv(tid,d).length; if(n<2) return 'na';
   if(isElimT(tid)){const E=elim(tid,d); return !E?'draw':elimDone(E)?'done':'bracket';}
+  if(isLgT(tid)){const st=lgStand(tid,d); return !st?'draw':st.fin&&!st.ties.length?'done':st.fin?'tie':'bracket';}
   const B=bracket(tid,d); if(!B) return 'pit';
   return B.f.win&&(B.t.state==='empty'||B.t.state==='bye'||B.t.win)?'done':'bracket';}
 function finalBar(tid){
@@ -1136,11 +1171,11 @@ function finalBar(tid){
       <button class="btn sm ghost ${S.confirm===k?'armed':''}" data-act="reopenT">${S.confirm===k?'Tap again to reopen':'Reopen tournament'}</button></div>`;}
   const st=offered(t).map(d=>({d,s:divState(tid,d.k)})).filter(x=>x.s!=='na');
   const done=st.filter(x=>x.s==='done').length, ready=st.length>0&&done===st.length, k='fin:'+tid;
-  const lbl={done:'Done',bracket:'Bracket in progress',pit:'Pit still open',draw:'Not drawn yet'};
+  const lbl={done:'Done',bracket:isLgT(tid)?'Rounds in progress':'Bracket in progress',pit:'Pit still open',draw:'Not drawn yet',tie:'Fight-off needed'};
   return `<div class="panel" style="margin-bottom:18px"><div class="row" style="justify-content:space-between;align-items:center">
     <div><h2 style="margin:0 0 6px">Finalize tournament</h2><div>${st.map(x=>`<span class="rchip">${sw(x.d.k)}${esc(x.d.s)} · ${x.s==='done'?'<b>Done</b>':lbl[x.s]}</span>`).join('')||'<span class="muted">No division has two or more fighters yet.</span>'}</div></div>
     <button class="btn ${S.confirm===k?'armed':''}" data-act="finalize" ${ready?'':'disabled'}>${S.confirm===k?'Tap again to finalize':ready?'Finalize tournament':`${done} of ${st.length} divisions done`}</button></div>
-    <p class="foot" style="margin:8px 0 0">${ready?(isElimT(tid)?'Finalizing locks the brackets, closes player signups and saves the results to player and park history.':'Finalizing locks the pits and brackets, stops the clocks, closes player signups and saves the results to player and park history.'):'The button unlocks when every division with two or more fighters has its 1st, 2nd and 3rd decided.'}</p></div>`;
+    <p class="foot" style="margin:8px 0 0">${ready?(isElimT(tid)||isLgT(tid)?'Finalizing locks the brackets, closes player signups and saves the results to player and park history.':'Finalizing locks the pits and brackets, stops the clocks, closes player signups and saves the results to player and park history.'):'The button unlocks when every division with two or more fighters has its 1st, 2nd and 3rd decided.'}</p></div>`;
 }
 const H={
   draw:ds=>{const d=ds.div, fs=inDiv(S.tid,d); if(fs.length<2){toast('Needs at least two fighters.');return;}
@@ -1168,6 +1203,12 @@ const H={
     render();window.scrollTo({top:0});},
   park:ds=>{S.park=ds.p;render();},
   pmetric:ds=>{S.pmetric=ds.v;render();},
+  sortby:ds=>{const cur=S.sorts[ds.t]||{}; const numeric=!['title','name','cat'].includes(ds.k); S.sorts[ds.t]={k:ds.k,dir:cur.k===ds.k?-cur.dir:(numeric&&ds.k!=='rank'?-1:1)}; if(S.as) S.as.last={}; render();},
+  hunterrec:ds=>{const c={fid:ds.f,place:Number(ds.p)||0}; const txt=hunterText(c);
+    try{navigator.clipboard.writeText(txt).then(()=>toast('Reason copied. On their ORK page, choose Recommend and paste it in.'),()=>toast('Copy the reason text shown in the table.'));}catch(e){toast('Copy the reason text shown in the table.');}},
+  hrec:ds=>{const id=S.tid+'__'+ds.f+'__hunter', cur=S.recs[id]?.status, next=cur===ds.v?null:ds.v;
+    if(next){const data={tid:S.tid,fid:ds.f,status:next,award:'hunter',at:Date.now()};S.recs[id]=data;render();w(()=>S.db.doc('recs/'+id).set(data));}
+    else{delete S.recs[id];render();w(()=>S.db.doc('recs/'+id).delete());}},
   rec:ds=>{const id=S.tid+'__'+ds.f, cur=S.recs[id]?.status; const next=cur===ds.v?null:ds.v;
     if(next){const data={tid:S.tid,fid:ds.f,status:next,lvl:Number(ds.l)||null,at:Date.now()};S.recs[id]=data;render();w(()=>S.db.doc('recs/'+id).set(data));}
     else{delete S.recs[id];render();w(()=>S.db.doc('recs/'+id).delete());}},
@@ -1218,9 +1259,8 @@ document.addEventListener('change',e=>{const t=e.target;
   else if(t.id==='boardDiv'){S.board.div=t.value;saveLocal();render();}
   else if(t.id==='boardKills'){S.board.kills=t.checked;saveLocal();render();}
   else if(t.dataset.tally!==undefined){if(lockedInput())return;setTally(t.dataset.tally,t.value);}
-  else if(t.id==='tFormat'){const el=t.value==='elim'; $('#tMinField').hidden=el;
-    $('#tFormatHelp').textContent=el?'Bracket: no pit. Every fighter in a division is drawn into one single-elimination bracket; the semifinal losers fight for 3rd.':'Pool and Bracket: each division fights a timed winner-stays pit, then the top 4 fight a bracket.';}
-  else if(t.id==='setFormat'){const tid=S.tid, has=S.bouts.length||Object.values(S.tallies).some(x=>x.tid===tid)||Object.keys(S.divs).some(k=>S.divs[k].tid===tid&&(S.divs[k].bracket||S.divs[k].elim));
+  else if(t.id==='tFormat'){$('#tMinField').hidden=t.value!=='pit'; $('#tFormatHelp').textContent=FORMAT_HELP[t.value]||FORMAT_HELP.pit;}
+  else if(t.id==='setFormat'){const tid=S.tid, has=S.bouts.length||Object.values(S.tallies).some(x=>x.tid===tid)||Object.keys(S.divs).some(k=>S.divs[k].tid===tid&&(S.divs[k].bracket||S.divs[k].elim||S.divs[k].lg));
     if(has){toast('The format can’t change once pits or brackets have results. Start a new tournament instead.');render();return;}
     w(()=>S.db.doc('tournaments/'+tid).update({format:t.value}));}
   else if(t.id==='setLevel'){w(()=>S.db.doc('tournaments/'+S.tid).update({level:t.value}));}
@@ -1235,10 +1275,10 @@ document.addEventListener('change',e=>{const t=e.target;
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset&&e.target.dataset.tally!==undefined){e.preventDefault();e.target.blur();}});
 $('#tForm').addEventListener('submit',async e=>{e.preventDefault();
   const divs=[...document.querySelectorAll('#tDivs input:checked')].map(i=>i.value); if(!divs.length){toast('Pick at least one division.');return;}
-  const data={name:$('#tName').value.trim(),eventId:($('#tEvent')&&$('#tEvent').value)||null,date:$('#tDate').value,park:$('#tPark').value.trim(),kingdom:$('#tKingdom').value||'westmarch',level:$('#tLevel').value,format:$('#tFormat').value==='elim'?'elim':'pit',pitMin:Math.max(1,parseInt($('#tMin').value)||10),divs,signupsOpen:true,at:Date.now()};
+  const data={...($('#tKind')&&$('#tKind').value==='morrigan'?{variant:'morrigan'}:{}),name:$('#tName').value.trim(),eventId:($('#tEvent')&&$('#tEvent').value)||null,date:$('#tDate').value,park:$('#tPark').value.trim(),kingdom:$('#tKingdom').value||'westmarch',level:$('#tLevel').value,format:['elim','rr','swiss'].includes($('#tFormat').value)?$('#tFormat').value:'pit',pitMin:Math.max(1,parseInt($('#tMin').value)||10),divs,signupsOpen:true,at:Date.now()};
   if(!data.name)return; if(!S.db){toast('The shared tournament store isn’t available in this view.');return;}
   const ref=S.db.collection('tournaments').doc();
-  if(await w(()=>ref.set(data))){S.tid=ref.id;S.qrOpen=ref.id;S.view=null;if(S.kf!=='all')S.kf=data.kingdom;setUrlT(S.tid);S.tab='signups';$('#newT').hidden=true;$('#tName').value='';render();toast(`${data.name} is on the lists.`);}
+  if(await w(()=>ref.set(data))){S.tid=ref.id;S.qrOpen=ref.id;S.view=null;if(S.kf!=='all')S.kf=data.kingdom;setUrlT(S.tid);S.tab='signups';$('#newT').hidden=true;$('#tName').value='';if($('#tKind')){$('#tKind').value='combat';window.syncKind&&window.syncKind();}render();toast(`${data.name} is on the lists.`);}
 });
 async function signUp({name,park,orkId,divs}){
   const lc=name.toLowerCase(); const F=Object.entries(S.fighters);
@@ -1283,7 +1323,7 @@ $('#suOrk').addEventListener('change',()=>{const id=parseOrk($('#suOrk').value);
 
 /* ---------- Field Marshal standalone: Firebase, marshals, player signups, live ORK ---------- */
 const ORK='https://ork.amtgard.com/orkservice/Json/index.php';
-const WRITE_ACTS=new Set(['ewin','draw','orksend','finalize','reopenT','win','undo','timer','seed','reopen','mwin','togdiv','rmsu','delT','mode','tstep','rec','pick','slot','newT','editseeds','orkpick','approve','decline','addMarshal','rmMarshal','orkroster','orkwar']);
+const WRITE_ACTS=new Set(['hrec','ewin','draw','orksend','finalize','reopenT','win','undo','timer','seed','reopen','mwin','togdiv','rmsu','delT','mode','tstep','rec','pick','slot','newT','editseeds','orkpick','approve','decline','addMarshal','rmMarshal','orkroster','orkwar']);
 Object.assign(S,{user:null,mdoc:null,requests:[],marshals:[],privSubs:null,autoWar:{},warBusy:false,lastReq:'',lastApp:''});
 
 /* Marshals are scoped by kingdom: marshals/{email}.kingdoms = ['westmarch'], ['neverwinter'], ['*'] (all).
@@ -1606,7 +1646,7 @@ const legalTxt=e=>e.legal===true?'Field legal':e.legal===false?'Not field legal'
 function snapScore(v,c,e){const st=c.step||0.01; let x=Math.round(Math.round(v/st)*st*100)/100; x=Math.min(c.max,Math.max(c.min,x)); if(legalCapped(e)&&x>LEGAL_CAP) x=LEGAL_CAP; return x;}
 const JFMT={'3':{n:3,lo:0,hi:0,label:'3 judges · average all three'},'4l':{n:4,lo:1,hi:0,label:'4 judges · drop the lowest'},
   '4h':{n:4,lo:0,hi:1,label:'4 judges · drop the highest'},'5':{n:5,lo:1,hi:1,label:'5 judges · drop the lowest and highest'}};
-const asCfg=t=>{const a=(t&&t.as)||{};return {min:Number.isFinite(+a.min)?+a.min:1,max:Number.isFinite(+a.max)?+a.max:5,topN:+a.topN||5,thr:Number.isFinite(+a.thr)?+a.thr:4,subs:Array.isArray(a.subs)&&a.subs.length?a.subs:ALL_SUBS,live:!!a.live,fmt:JFMT[a.fmt]?a.fmt:'5',step:STEPS.includes(+a.step)?+a.step:0.01};};
+const asCfg=t=>{const a=(t&&t.as)||{};return {min:Number.isFinite(+a.min)?+a.min:1,max:Number.isFinite(+a.max)?+a.max:5,topN:+a.topN||5,thr:Number.isFinite(+a.thr)?+a.thr:4,subs:Array.isArray(a.subs)&&a.subs.length?a.subs:ALL_SUBS,live:!!a.live,fmt:JFMT[a.fmt]?a.fmt:'5',step:STEPS.includes(+a.step)?+a.step:0.01,sum:['avg','combined'].includes(a.sum)?a.sum:(tKingdom(t)==='westmarch'?'avg':'combined'),jlock:!!a.jlock};};
 const f2=n=>(Math.round(n*100)/100).toFixed(2);
 const snapQ=v=>Math.round(v*100)/100;  // scores are kept to hundredths (.00)
 const playerKey=e=>e.orkId?('o'+e.orkId):('n'+String(e.name||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-'));
@@ -1645,7 +1685,7 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
 
   // New tournament form: Type selector and A&S settings
   const row=$('#tForm .row');
-  row.insertAdjacentHTML('afterbegin',`<div class="field" style="flex-basis:220px"><label for="tKind">Type</label><select id="tKind"><option value="combat">Combat</option><option value="arts">Arts &amp; Sciences (Dragonmaster)</option><option value="bards">Battle of the Bards</option></select></div>`);
+  row.insertAdjacentHTML('afterbegin',`<div class="field" style="flex-basis:220px"><label for="tKind">Type</label><select id="tKind"><option value="combat">Combat</option><option value="morrigan">Morrigan (combat for women and non-male fighters)</option><option value="arts">Arts &amp; Sciences (Dragonmaster)</option><option value="bards">Battle of the Bards</option></select></div>`);
   const divBlock=$('#tDivs').parentElement;
   divBlock.insertAdjacentHTML('beforebegin',`<div id="tArts" hidden class="stack" style="gap:12px">
     <div class="row">
@@ -1659,8 +1699,8 @@ body.arts .tabs .cb-tab{display:none!important} body:not(.arts) .tabs .as-tab{di
     <div><div class="lbl" style="margin-bottom:6px">Sub-categories offered</div><div class="catgrid" id="aSubs">${AS_CATS.map(c=>`<fieldset><legend>${c.n}</legend>${c.subs.map(([k,n])=>`<label><input type="checkbox" value="${k}" checked>${esc(n)}</label>`).join('')}</fieldset>`).join('')}</div></div></div>`);
   const combatBits=[$('#tFormat').closest('.field'),$('#tMinField'),$('#tFormatHelp'),divBlock];
   const sync=()=>{const kind=$('#tKind').value; $('#tArts').hidden=kind!=='arts'; const tb=$('#tBards'); if(tb) tb.hidden=kind!=='bards';
-    combatBits.forEach(el=>{if(el) el.hidden=kind!=='combat';});
-    if(kind==='combat'){$('#tMinField').hidden=$('#tFormat').value==='elim';}};
+    combatBits.forEach(el=>{if(el) el.hidden=!(kind==='combat'||kind==='morrigan');});
+    if(kind==='combat'||kind==='morrigan'){$('#tMinField').hidden=$('#tFormat').value!=='pit';}};
   window.syncKind=sync;
   document.addEventListener('change',e=>{if(e.target.id==='tKind'||e.target.id==='tFormat')sync();});
   document.addEventListener('submit',async e=>{
@@ -1705,6 +1745,14 @@ function watchArts(){
    A judge who hasn't scored an entry counts as 0, so with a drop-lowest format the blank is the one dropped.
    Entry score = the counted scores added together; entry average = that ÷ the number counted. */
 const TRIM_AT=5;
+/* Standings total (as.sum): 'avg' (Westmarch) adds up the counted entries' averages, e.g. 5.00 + 4.69 + 4.58 = 14.27;
+   'combined' adds up their combined scores (three counted judges added). Westmarch events default to 'avg'. */
+/* Sortable table headers: S.sorts[table] = {k, dir}; clicking a header sorts by it, again to reverse. */
+S.sorts={};
+const sortTh=(tbl,k,label,cls)=>{const st=S.sorts[tbl]||{}, on=st.k===k; return `<th class="${cls||''}"><button class="thsort ${on?'on':''}" data-act="sortby" data-t="${tbl}" data-k="${k}" aria-label="Sort by ${label}">${label}${on?(st.dir<0?' ▼':' ▲'):' ↕'}</button></th>`;};
+function applySort(tbl,rows,keys,defK,defDir){const st=S.sorts[tbl]||{k:defK,dir:defDir}, f=keys[st.k]; if(!f) return rows;
+  return rows.slice().sort((a,b)=>{const x=f(a), y=f(b); const c=typeof x==='string'?x.localeCompare(y):(x-y); return c*st.dir;});}
+const entryVal=(a,c)=>!a||!a.n?0:(c&&c.sum==='avg'?a.a:eScore(a));
 const eScore=a=>a&&a.n?(a.s!=null?a.s:a.a*3):0;
 function entryCalc(list,fmt){const F=JFMT[fmt]||JFMT['5'], have=list.length, v=list.concat(Array(Math.max(0,F.n-have)).fill(0)).sort((x,y)=>x-y);
   const used=v.slice(F.lo,v.length-F.hi), sum=used.reduce((a,x)=>a+x,0);
@@ -1740,9 +1788,9 @@ function publishPfb(show,t){if(!S.isMarshal&&!S.as.myJudge) return; const tid=t.
       for(let i=0;i<ops.length;i+=400){const b=S.db.batch(); ops.slice(i,i+400).forEach(f=>f(b)); await b.commit();}
     }catch(e){console.warn('pfb',e.code||e); delete S.as.pfbSig[tid];}},1500);}
 function asStandings(avg){
-  const N=asCfg(T()).topN, P={};
+  const C=asCfg(T()), N=C.topN, P={};
   S.as.entries.forEach(e=>{const a=avg[e.id], k=playerKey(e); const p=P[k]||(P[k]={key:k,name:e.name,park:e.park,orkId:e.orkId,subs:{},entries:0});
-    p.entries++; if(a&&a.n&&(!p.subs[e.sub]||eScore(a)>p.subs[e.sub].a)) p.subs[e.sub]={a:eScore(a),avg:a.a,eid:e.id};});
+    p.entries++; if(a&&a.n&&(!p.subs[e.sub]||entryVal(a,C)>p.subs[e.sub].a)) p.subs[e.sub]={a:entryVal(a,C),avg:a.a,eid:e.id};});
   return Object.values(P).map(p=>{const tops=Object.values(p.subs).sort((a,b)=>b.a-a.a), best=tops.map(x=>x.a), top=tops.slice(0,N);
     return {...p,nsubs:Object.keys(p.subs).length,counted:top.length,total:top.reduce((s,x)=>s+x.a,0),avg:top.length?top.reduce((s,x)=>s+x.avg,0)/top.length:0,best};})
    .sort((a,b)=>b.total-a.total||(b.best[0]||0)-(a.best[0]||0)||String(a.name).localeCompare(String(b.name)));
@@ -1806,7 +1854,7 @@ function renderEntries(){
   const byCat=AS_CATS.map(cat=>({cat,list:S.as.entries.filter(e=>SUB[e.sub]?.cat===cat.k)})).filter(x=>x.list.length);
   const list=byCat.length?byCat.map(({cat,list})=>`<h3 style="margin:14px 0 4px">${esc(cat.n)} <span class="muted" style="font:500 .9rem var(--body)">· ${list.length}</span></h3>${list.map(e=>{const k='asdel:'+e.id;
       return `<div class="entry"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span></div>
-      <div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}${e.orkId?' · '+orkLink(e.orkId):''}${LEGAL_SUBS.has(e.sub)?' · '+esc(legalTxt(e)):''}</div>
+      <div class="meta">${S.isMarshal||t.status==='final'?`${esc(e.name)}${e.park?' · '+esc(e.park):''}${e.orkId?' · '+orkLink(e.orkId):''}`:'<span class="muted">Entrant shown after judging</span>'}${LEGAL_SUBS.has(e.sub)?' · '+esc(legalTxt(e)):''}</div>
       ${S.isMarshal?`<div class="row m-only"><select data-assub="${esc(e.id)}" aria-label="Category for ${esc(e.title)}" style="max-width:300px">${subOptions(c,e.sub)}</select>
         ${LEGAL_SUBS.has(e.sub)?`<select data-aslegal="${esc(e.id)}" aria-label="Field legal for ${esc(e.title)}" style="max-width:230px"><option value="">Field legal: not checked</option><option value="yes" ${e.legal===true?'selected':''}>Field legal</option><option value="no" ${e.legal===false?'selected':''}>Not field legal (max 2.99)</option></select>`:''}
         <input id="aork-${esc(e.id)}" data-asork="${esc(e.id)}" value="${esc(e.orkId||'')}" placeholder="ORK link or ID" aria-label="ORK profile for ${esc(e.title)}" autocomplete="off" inputmode="url" style="max-width:220px">
@@ -1858,13 +1906,13 @@ function renderJudging(){
         return orph.length?`<div class="banner" style="margin-top:10px"><span><b>${orph.length} score${orph.length===1?'':'s'}</b> still count${orph.length===1?'s':''} from judge${who.length===1?'':'s'} no longer on the list (${esc(who.map(x=>x.startsWith('paper-')?x.slice(6).replace(/-/g,' '):x).join(', '))}).</span>
           <button class="btn sm danger ${S.confirm==='rmO:'+S.tid?'armed':''}" data-act="rmOrphans">${S.confirm==='rmO:'+S.tid?'Tap again to delete them':'Delete those scores'}</button></div>`:'';})(),'jlist');
     const avg=asAverages();
-    setHtml($('#asProgress'),S.as.entries.length?`<h3 style="margin-bottom:6px">Scoring progress</h3><div class="scroll"><table><thead><tr><th>Entry</th><th>Category</th><th class="n">Scores in</th><th>Scores</th><th class="n">Entry score</th></tr></thead><tbody>
-      ${S.as.entries.map(e=>{const elig=S.as.judges.filter(j=>judgeCanScore(j,e)).length, a=avg[e.id];
+    setHtml($('#asProgress'),S.as.entries.length?`<h3 style="margin-bottom:6px">Scoring progress</h3><div class="scroll"><table><thead><tr>${sortTh('prog','title','Entry')}${sortTh('prog','name','Entrant')}${sortTh('prog','cat','Category')}${sortTh('prog','n','Scores in','n')}<th>Scores</th>${sortTh('prog','avg','Average','n')}${sortTh('prog','score','Combined','n')}</tr></thead><tbody>
+      ${applySort('prog',S.as.entries,{title:e=>String(e.title||'').toLowerCase(),name:e=>String(e.name||'').toLowerCase(),cat:e=>(SUB[e.sub]?.catN||'')+' '+(SUB[e.sub]?.n||''),n:e=>(avg[e.id]&&avg[e.id].n)||0,avg:e=>(avg[e.id]&&avg[e.id].a)||0,score:e=>eScore(avg[e.id])},'title',1).map(e=>{const elig=S.as.judges.filter(j=>judgeCanScore(j,e)).length, a=avg[e.id];
         const keys=new Set(S.as.judges.map(jKey)), F=JFMT[c.fmt], sc0=scoresFor(e.id).map(x=>({v:Number(x.score)||0,gone:!keys.has(x.judge)}));
         const sc=sc0.concat(Array(Math.max(0,F.n-sc0.length)).fill(0).map(()=>({v:0,blank:true}))).sort((x,y)=>x.v-y.v);
         const cells=sc.map((x,i)=>{const drop=i<F.lo||i>=sc.length-F.hi; if(x.blank) return `<span class="rchip muted" style="${drop?'text-decoration:line-through;opacity:.6':''}" title="Not scored yet, counts as 0${drop?', dropped':''}">0 ·  blank</span>`;return `<span class="rchip" style="${drop?'text-decoration:line-through;opacity:.6':''}${x.gone?';border-color:var(--danger,#b3261e)':''}" title="${drop?(i<F.lo?'Lowest, dropped':'Highest, dropped'):'Counted'}${x.gone?' · from a judge no longer on the list':''}">${f2(x.v)}</span>`;}).join(' ');
-        return `<tr><td><b>${esc(e.title)}</b><small class="muted" style="display:block">${esc(e.name)}</small></td><td>${esc(SUB[e.sub]?.n||e.sub)}${LEGAL_SUBS.has(e.sub)?`<small class="muted" style="display:block">${esc(legalTxt(e))}</small>`:''}</td><td class="n">${a?a.n:0} of ${elig}</td><td>${cells||'<span class="muted">—</span>'}</td><td class="n">${a?`<b>${f2(eScore(a))}</b><small class="muted" style="display:block">avg ${f2(a.a)}</small>`:'—'}${sc0.length>F.n?`<small style="display:block;color:var(--danger,#b3261e)">${sc0.length} scores for a ${F.n}-judge event. Remove the extra.</small>`:''}${legalCapped(e)&&sc0.some(x=>x.v>LEGAL_CAP)?`<small style="display:block;color:var(--danger,#b3261e)">${legalTxt(e)}: scores above 2.99 need re-scoring</small>`:''}</td></tr>`;}).join('')}</tbody></table></div>
-      <p class="foot" style="margin:6px 0 0">Judging: ${esc(JFMT[c.fmt].label)}. Dropped scores are struck through; a judge who hasn’t scored yet counts as 0. Entry score = the three counted scores added together (the Scores tab uses it); avg = entry score ÷ 3. A red outline marks a score from a judge no longer on the list.</p>`:'','progress');
+        return `<tr><td><b>${esc(e.title)}</b></td><td>${esc(e.name)}</td><td>${esc(SUB[e.sub]?.n||e.sub)}${LEGAL_SUBS.has(e.sub)?`<small class="muted" style="display:block">${esc(legalTxt(e))}</small>`:''}</td><td class="n">${a?a.n:0} of ${elig}</td><td>${cells||'<span class="muted">—</span>'}</td><td class="n">${a?f2(a.a):'—'}</td><td class="n">${a?`<b>${f2(eScore(a))}</b>`:'—'}${sc0.length>F.n?`<small style="display:block;color:var(--danger,#b3261e)">${sc0.length} scores for a ${F.n}-judge event. Remove the extra.</small>`:''}${legalCapped(e)&&sc0.some(x=>x.v>LEGAL_CAP)?`<small style="display:block;color:var(--danger,#b3261e)">${legalTxt(e)}: scores above 2.99 need re-scoring</small>`:''}</td></tr>`;}).join('')}</tbody></table></div>
+      <p class="foot" style="margin:6px 0 0">Judging: ${esc(JFMT[c.fmt].label)}. Dropped scores are struck through; a judge who hasn’t scored yet counts as 0. Average = the three counted scores ÷ 3; Combined = the three added together. Tap a column heading to sort; tap again to reverse. A red outline marks a score from a judge no longer on the list.</p>`:'','progress');
   } else {$('#asJudgeAdmin').innerHTML=''; S.as.adminTid=null; delete S.as.last.jlist; delete S.as.last.progress;}
   // Marshals: type in scores for any judge on the list (paper judges, or a judge without their phone).
   if(S.isMarshal){const pj=S.as.judges.find(x=>x.id===S.as.proxyJ)||null;
@@ -1888,17 +1936,19 @@ function judgeCards(j,mode){const t=T(), c=asCfg(t), final=t.status==='final', j
   const cards=mine.map(e=>{const saved=S.as.scores[e.id+'__'+jk], dr=drafts[e.id]||{};
     const sv=dr.score!=null?dr.score:(saved?saved.score:''), fb=dr.fb!=null?dr.fb:(saved?saved.feedback||'':'');
     const cap=legalCapped(e), hi=cap?Math.min(c.max,LEGAL_CAP):c.max, redo=saved&&cap&&Number(saved.score)>LEGAL_CAP;
-    return `<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span>${LEGAL_SUBS.has(e.sub)?` <span class="rchip" style="${e.legal===true?'border-color:var(--good)':'border-color:var(--danger,#b3261e)'}">${legalTxt(e)}</span>`:''}<div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}</div></div>
-      <span class="scorepill ${saved?'done':''}">${saved?f2(saved.score):'Not scored'}</span></div>
+    const jl=!mode&&c.jlock, locked=!!(saved&&saved.locked), off=final||jl||locked, dis=off?'disabled':'';
+    return `<div class="entry"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(e.title)}</b> <span class="rchip">${esc(SUB[e.sub]?.n||e.sub)}</span>${LEGAL_SUBS.has(e.sub)?` <span class="rchip" style="${e.legal===true?'border-color:var(--good)':'border-color:var(--danger,#b3261e)'}">${legalTxt(e)}</span>`:''}${mode?`<div class="meta">${esc(e.name)}${e.park?' · '+esc(e.park):''}</div>`:''}</div>
+      <span class="scorepill ${saved?'done':''}">${saved?f2(saved.score)+(locked?' 🔒':''):'Not scored'}</span></div>
       ${redo?`<div class="banner" style="margin:6px 0"><span><b>Re-score needed.</b> This entry isn’t marked field legal, so it can’t score above 2.99. This score still counts as entered until it’s changed.</span></div>`:''}
       ${mode?'':`<details ${saved?'':'open'}><summary class="muted" style="cursor:pointer">Writeup${e.links&&e.links.length?` and ${e.links.length} link${e.links.length===1?'':'s'}`:''}</summary>
         <div class="wu" style="margin-top:6px">${esc(e.writeup)}</div>
         ${(e.links||[]).map(l=>`<div><a class="orkl" href="${esc(l)}" target="_blank" rel="noopener">${esc(l.length>70?l.slice(0,67)+'…':l)}</a></div>`).join('')}</details>`}
-      <div class="jrow"><div class="field" style="flex:0 0 auto"><label for="${pre}js-${esc(e.id)}">Score (${c.min}–${f2(hi)}, ${String(c.step).replace(/^0/,'')} steps)</label><input id="${pre}js-${esc(e.id)}" data-js="${esc(e.id)}" data-jm="${mode}" type="number" inputmode="decimal" min="${c.min}" max="${hi}" step="${c.step}" value="${esc(sv)}" ${final?'disabled':''}></div>
-        <div class="field" style="flex:1 1 280px"><label for="${pre}jf-${esc(e.id)}">Feedback for the entrant${mode?' (optional)':''}</label><textarea id="${pre}jf-${esc(e.id)}" data-jf="${esc(e.id)}" data-jm="${mode}" rows="${mode?2:3}" maxlength="5000" ${final?'disabled':''}>${esc(fb)}</textarea></div>
-        <button class="btn" data-act="jsave" data-e="${esc(e.id)}" data-jm="${mode}" ${final?'disabled':''}>${saved?'Update':'Save score'}</button>
-        ${saved&&!final?(()=>{const k='jdel:'+e.id+'__'+jk;return `<button class="btn ghost danger ${S.confirm===k?'armed':''}" data-act="jdel" data-e="${esc(e.id)}" data-jm="${mode}">${S.confirm===k?'Tap again to remove':'Remove score'}</button>`;})():''}</div></div>`;}).join('');
-  return (mode?`<p class="foot" style="margin:10px 0 6px">${esc(jName(j))}: ${judgeDone(j)} of ${mine.length} scored.</p>`:'')+(cards||'<p class="none">No entries in this judge’s categories yet.</p>');
+      <div class="jrow"><div class="field" style="flex:0 0 auto"><label for="${pre}js-${esc(e.id)}">Score (${c.min}–${f2(hi)}, ${String(c.step).replace(/^0/,'')} steps)</label><input id="${pre}js-${esc(e.id)}" data-js="${esc(e.id)}" data-jm="${mode}" type="number" inputmode="decimal" min="${c.min}" max="${hi}" step="${c.step}" value="${esc(sv)}" ${dis}></div>
+        <div class="field" style="flex:1 1 280px"><label for="${pre}jf-${esc(e.id)}">Feedback for the entrant${mode?' (optional)':''}</label><textarea id="${pre}jf-${esc(e.id)}" data-jf="${esc(e.id)}" data-jm="${mode}" rows="${mode?2:3}" maxlength="5000" ${dis}>${esc(fb)}</textarea></div>
+        <button class="btn" data-act="jsave" data-e="${esc(e.id)}" data-jm="${mode}" ${dis}>${saved?'Update':'Save score'}</button>
+        ${saved&&!final&&!jl?`<button class="btn ghost" data-act="jlock" data-e="${esc(e.id)}" data-jm="${mode}" title="${locked?'Unlock to change this score':'Lock so this score and feedback can’t be changed by accident'}">${locked?'🔓 Unlock':'🔒 Lock'}</button>`:''}
+        ${saved&&!off?(()=>{const k='jdel:'+e.id+'__'+jk;return `<button class="btn ghost danger ${S.confirm===k?'armed':''}" data-act="jdel" data-e="${esc(e.id)}" data-jm="${mode}">${S.confirm===k?'Tap again to remove':'Remove score'}</button>`;})():''}</div></div>`;}).join('');
+  return (mode?`<p class="foot" style="margin:10px 0 6px">${esc(jName(j))}: ${judgeDone(j)} of ${mine.length} scored.</p>`:c.jlock&&!final?'<div class="banner" style="margin:6px 0"><span><b>Judging is locked.</b> The A&amp;S Crat has closed scoring for judges. Ask a marshal if something needs changing.</span></div>':'')+(cards||'<p class="none">No entries in this judge’s categories yet.</p>');
 }
 const draftsFor=m=>m?((S.as.pdraft||(S.as.pdraft={}))[jKey(S.as.judges.find(x=>x.id===S.as.proxyJ)||{})]||(S.as.pdraft[jKey(S.as.judges.find(x=>x.id===S.as.proxyJ)||{})]={})):S.as.draft;
 document.addEventListener('input',e=>{const t=e.target;
@@ -1911,6 +1961,8 @@ document.addEventListener('change',e=>{const t=e.target;
   else if(t.dataset&&t.dataset.assub){w(()=>S.db.doc('entries/'+t.dataset.assub).update({sub:t.value}));}
   else if(t.id==='asLive'){w(()=>S.db.doc('tournaments/'+S.tid).update({'as.live':t.checked}));}
   else if(t.id==='asOpen'){w(()=>S.db.doc('tournaments/'+S.tid).update({signupsOpen:t.checked}));}
+  else if(t.id==='asSum'){w(()=>S.db.doc('tournaments/'+S.tid).update({'as.sum':t.value==='combined'?'combined':'avg'}));}
+  else if(t.id==='asJlock'){w(()=>S.db.doc('tournaments/'+S.tid).update({'as.jlock':t.checked}));}
   else if(t.id==='asStep'){if(T()?.status==='final'){toast('Reopen the event to change its increments.');return;} const v=+t.value; w(()=>S.db.doc('tournaments/'+S.tid).update({'as.step':STEPS.includes(v)?v:0.01}));}
   else if(t.dataset&&t.dataset.aslegal){const v=t.value==='yes'?true:t.value==='no'?false:null; w(()=>S.db.doc('entries/'+t.dataset.aslegal).update({legal:v}));}
   else if(t.id==='asFmt'){if(T()?.status==='final'){toast('Reopen the event to change its judging.');return;} w(()=>S.db.doc('tournaments/'+S.tid).update({'as.fmt':JFMT[t.value]?t.value:'5'}));}
@@ -1926,12 +1978,12 @@ async function asSaveSettings(){const t=T(), c=asCfg(t);
 function renderASBoard(){
   const t=T(), c=asCfg(t), final=t.status==='final', show=final||c.live||S.isMarshal, avg=show?asAverages():{};
   const st=asStandings(avg), N=c.topN;
-  let rank=0,prev=null;
-  const rows=st.filter(p=>p.counted).map((p,i)=>{if(p.total!==prev){rank=i+1;prev=p.total;}
+  let rank=0,prev=null; st.filter(p=>p.counted).forEach((p,i)=>{if(p.total!==prev){rank=i+1;prev=p.total;} p.rank=rank;});
+  const rows=applySort('board',st.filter(p=>p.counted),{rank:p=>p.rank,name:p=>String(p.name||'').toLowerCase(),entries:p=>p.entries,counted:p=>p.counted,avg:p=>p.avg,total:p=>p.total},'rank',1).map(p=>{const rank=p.rank;
     return `<tr class="${rank===1?'r1':''}"><td class="rank">${rank}</td><td class="fp"><b>${esc(p.name)}</b><small>${esc(p.park||'')}${p.orkId?' · '+orkLink(p.orkId):''}</small></td><td class="n">${p.entries}</td><td class="n">${p.counted} of ${N}</td><td class="n">${p.counted?f2(p.avg):'—'}</td><td class="n total">${f2(p.total)}</td></tr>`;}).join('');
-  const catCards=AS_CATS.map(cat=>{const subs=cat.subs.map(([k,n])=>({k,n,list:S.as.entries.filter(e=>e.sub===k&&avg[e.id]).sort((a,b)=>eScore(avg[b.id])-eScore(avg[a.id]))})).filter(x=>x.list.length);
+  const catCards=AS_CATS.map(cat=>{const subs=cat.subs.map(([k,n])=>({k,n,list:S.as.entries.filter(e=>e.sub===k&&avg[e.id]).sort((a,b)=>entryVal(avg[b.id],c)-entryVal(avg[a.id],c))})).filter(x=>x.list.length);
     if(!subs.length) return '';
-    return `<div class="panel"><h3 style="margin-bottom:8px">${esc(cat.n)}</h3>${subs.map(s=>`<div style="margin-bottom:10px"><div class="lbl">${esc(s.n)}</div>${s.list.map((e,i)=>`<div class="pl" style="margin:4px 0">${i<3?`<span class="medal m${i+1}">${i+1}</span>`:`<span class="medal" style="background:var(--line);color:var(--ink)">${i+1}</span>`}<span class="nm"><b>${esc(e.title)}</b> <small class="muted">${esc(e.name)}</small></span><span class="pts" title="Average ${f2(avg[e.id].a)}">${f2(eScore(avg[e.id]))}</span></div>`).join('')}</div>`).join('')}</div>`;}).join('');
+    return `<div class="panel"><h3 style="margin-bottom:8px">${esc(cat.n)}</h3>${subs.map(s=>`<div style="margin-bottom:10px"><div class="lbl">${esc(s.n)}</div>${s.list.map((e,i)=>`<div class="pl" style="margin:4px 0">${i<3?`<span class="medal m${i+1}">${i+1}</span>`:`<span class="medal" style="background:var(--line);color:var(--ink)">${i+1}</span>`}<span class="nm"><b>${esc(e.title)}</b> <small class="muted">${esc(e.name)}</small></span><span class="pts" title="Average ${f2(avg[e.id].a)} · combined ${f2(eScore(avg[e.id]))}">${f2(entryVal(avg[e.id],c))}</span></div>`).join('')}</div>`).join('')}</div>`;}).join('');
   const scored=S.as.entries.filter(e=>asAverages()[e.id]).length, k='asfin:'+S.tid, rk='asreopen:'+S.tid;
   const finBar=!S.isMarshal?'':final?`<div class="banner m-only"><span><b>Final results.</b> Entrants can now open their private feedback links.</span><button class="btn sm ghost ${S.confirm===rk?'armed':''}" data-act="asReopen">${S.confirm===rk?'Tap again to reopen':'Reopen event'}</button></div>`
     :`<div class="panel m-only"><div class="row" style="justify-content:space-between;align-items:center"><div><h2 style="margin:0 0 4px">Finalize event</h2><p class="foot" style="margin:0">${scored} of ${S.as.entries.length} entries have at least one score. Finalizing locks scoring, closes entries, and publishes each entrant’s scores and feedback to their private link.</p></div>
@@ -1942,11 +1994,12 @@ function renderASBoard(){
       <div class="field" style="flex:0 1 170px"><label for="asTop">Categories counted</label><input id="asTop" type="number" min="1" max="36" value="${c.topN}"></div>
       <div class="field" style="flex:0 1 200px"><label for="asThr">Award threshold</label><input id="asThr" type="number" step="0.01" value="${c.thr}"></div>
       <div class="field" style="flex:0 1 300px"><label for="asFmt">Judge type</label><select id="asFmt" ${final?'disabled':''}>${Object.entries(JFMT).map(([k,f])=>`<option value="${k}" ${k===c.fmt?'selected':''}>${f.label}</option>`).join('')}</select></div>
+      <div class="field" style="flex:0 1 330px"><label for="asSum">Standings total</label><select id="asSum"><option value="avg" ${c.sum==='avg'?'selected':''}>Westmarch: add the entries’ averages</option><option value="combined" ${c.sum==='combined'?'selected':''}>Add the entries’ combined scores</option></select></div>
       <div class="field" style="flex:0 1 220px"><label for="asStep">Score increments</label><select id="asStep" ${final?'disabled':''}>${STEPS.map(v=>`<option value="${v}" ${v===c.step?'selected':''}>${stepLabel(v)}</option>`).join('')}</select></div></div>
-    <div class="checks" style="margin:12px 0"><label><input type="checkbox" id="asOpen" ${t.signupsOpen!==false?'checked':''}> Accept entries</label><label><input type="checkbox" id="asLive" ${c.live?'checked':''}> Show scores to everyone before finalizing</label></div>
+    <div class="checks" style="margin:12px 0"><label><input type="checkbox" id="asOpen" ${t.signupsOpen!==false?'checked':''}> Accept entries</label><label><input type="checkbox" id="asJlock" ${c.jlock?'checked':''}> Lock judging (judges can’t change scores; marshals still can)</label><label><input type="checkbox" id="asLive" ${c.live?'checked':''}> Show scores to everyone before finalizing</label></div>
     <button class="btn danger ${S.confirm==='asdelT:'+S.tid?'armed':''}" data-act="asDelT">${S.confirm==='asdelT:'+S.tid?'Tap again to delete everything':'Delete event'}</button></div>`;
-  const board=show?`<div class="panel"><h2>Dragonmaster standings</h2>${rows?`<div class="scroll"><table><thead><tr><th>#</th><th>Player</th><th class="n">Entries</th><th class="n">Counted</th><th class="n" title="Score divided by the number of sub-categories counted">Average</th><th class="n">Score</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="none">No scores yet.</p>'}
-      <p class="foot">Judging: ${esc(JFMT[c.fmt].label)}. Entry score = the three counted judges’ scores added together; a judge who hasn’t scored yet counts as 0. Score = a player’s best entry score in each sub-category, top ${N} sub-categories, added together. Average = the average of those counted entries’ averages (each entry’s counted scores ÷ 3).${!final&&S.isMarshal&&!c.live?' Only marshals see this until you finalize.':''}</p></div>`
+  const board=show?`<div class="panel"><h2>Dragonmaster standings</h2>${rows?`<div class="scroll"><table><thead><tr>${sortTh('board','rank','#')}${sortTh('board','name','Player')}${sortTh('board','entries','Entries','n')}${sortTh('board','counted','Counted','n')}${sortTh('board','avg','Average','n')}${sortTh('board','total','Score','n')}</tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="none">No scores yet.</p>'}
+      <p class="foot">Judging: ${esc(JFMT[c.fmt].label)}. Each entry’s average = its three counted judges’ scores ÷ 3 (a judge who hasn’t scored yet counts as 0). ${c.sum==='avg'?`Score = the averages of a player’s best entry in each sub-category, top ${N}, added together (Westmarch method).`:`Score = the combined scores (three counted judges added) of a player’s best entry in each sub-category, top ${N}, added together.`} Average = the average of those entries’ averages.${!final&&S.isMarshal&&!c.live?' Only marshals see this until you finalize.':''}</p></div>`
     :`<div class="panel"><h2>Scores are revealed at court</h2><p class="muted" style="margin:0">The standings appear here when the A&amp;S Crat finalizes the event.</p></div>`;
   setHtml($('#as-asboard'),`<div class="stack">${finBar}${board}${show?`<div class="bgrid">${catCards}</div>`:''}${settings}</div>`,'board');
 }
@@ -2000,7 +2053,12 @@ async function setEntryOrk(eid,id){const e=S.as.entries.find(x=>x.id===eid); if(
 Object.assign(H2,{
   asorkuse:ds=>setEntryOrk(ds.e,ds.o),
   copyfb:()=>{const i=$('#fbUrl'); if(!i) return; try{navigator.clipboard.writeText(i.value).then(()=>toast('Link copied.'),()=>{i.select();toast('Select the link and copy it.');});}catch(e){i.select();}},
+  jlock:async ds=>{const m=ds.jm||'', j=m?S.as.judges.find(x=>x.id===S.as.proxyJ):S.as.myJudge; if(!j) return; const id=ds.e+'__'+jKey(j), sc=S.as.scores[id]; if(!sc) return;
+    if(!m&&asCfg(T()).jlock){toast('Judging is locked.');return;}
+    try{await S.db.doc('scores/'+id).update({locked:!sc.locked}); toast(sc.locked?'Unlocked. You can change this score now.':'Locked. Tap Unlock to change it.');}
+    catch(err){console.error(err);toast(err.code==='permission-denied'?'Couldn’t change the lock. Publish the latest firestore.rules.':'Couldn’t change the lock. Try again.');}},
   jsave:async ds=>{const m=ds.jm||'', e=S.as.entries.find(x=>x.id===ds.e), j=m?S.as.judges.find(x=>x.id===S.as.proxyJ):S.as.myJudge; if(!e||!j) return;
+    {const old=S.as.scores[e.id+'__'+jKey(j)]; if(old&&old.locked){toast('This score is locked. Tap Unlock first.');return;} if(!m&&asCfg(T()).jlock){toast('Judging is locked.');return;}}
     const c=asCfg(T()), jk=jKey(j), pre=m?'p':'';
     const inp=$('#'+pre+'js-'+CSS.escape(ds.e)), fb=$('#'+pre+'jf-'+CSS.escape(ds.e)); const v=inp&&inp.value!==''?snapScore(+inp.value,c,e):NaN;
     if(!inp||inp.value===''||!(v>=c.min&&v<=c.max)){toast(`Enter a score from ${c.min} to ${c.max}.`);return;}
@@ -2008,7 +2066,7 @@ Object.assign(H2,{
     if(m) data.by=myEmail();
     try{await S.db.doc('scores/'+e.id+'__'+jk).set(data); delete draftsFor(m)[e.id]; toast(`Saved ${f2(v)} for ${e.title}${m?' from '+jName(j):''}.`);}
     catch(err){console.error(err);toast(err.code==='permission-denied'?(m?'Couldn’t save for that judge. Publish the latest firestore.rules, and check the event isn’t finalized.':'You’re not on this event’s judge list, or scoring is locked.'):'Couldn’t save. Try again.');}},
-  jdel:async ds=>{const m=ds.jm||'', e=S.as.entries.find(x=>x.id===ds.e), j=m?S.as.judges.find(x=>x.id===S.as.proxyJ):S.as.myJudge; if(!e||!j) return;
+  jdel:async ds=>{if(!(ds.jm||'')&&asCfg(T()).jlock){toast('Judging is locked.');return;} const m=ds.jm||'', e=S.as.entries.find(x=>x.id===ds.e), j=m?S.as.judges.find(x=>x.id===S.as.proxyJ):S.as.myJudge; if(!e||!j) return;
     const jk=jKey(j); if(!arm('jdel:'+e.id+'__'+jk)) return;
     try{await S.db.doc('scores/'+e.id+'__'+jk).delete(); delete draftsFor(m)[e.id]; S.as.last={}; render(); toast(`Removed ${m?jName(j)+'’s':'your'} score for ${e.title}.`);}
     catch(err){console.error(err);toast(err.code==='permission-denied'?'Couldn’t remove it. Publish the latest firestore.rules, and check the event isn’t finalized.':'Couldn’t remove. Try again.');}},
@@ -4830,6 +4888,98 @@ var qrcode = function() {
 }));
 
 
+/* ---------- tournament formats: Round Robin and Swiss ----------
+   format 'rr'    = Round Robin: every fighter in a division fights every other once (circle schedule).
+   format 'swiss' = Swiss: each round pairs fighters with the same record, no rematches when avoidable.
+   Stored on divisions/{tid}__{div}.lg = {type, rounds:[{m:[[a,b],…], bye:fid|null}], w:{'r{i}m{j}':fid},
+   nr (Swiss rounds), fo:{groupKey:[fids in fight-off order]}, drawnAt}.
+   Standings: most wins. A Swiss bye counts as a win (not toward a Warrior streak); a Round Robin bye is a rest.
+   Fighters tied for a top-three place settle it with a fight-off the marshal records. Final standings give
+   1st/2nd/3rd (5/3/1 points). Straight wins across rounds count toward Warrior like pit and bracket wins. */
+function isLgT(tid){return ['rr','swiss'].includes(tFormat(tByid(tid)));}
+function lgOf(tid,d){const g=divDoc(tid,d)?.lg; return g&&Array.isArray(g.rounds)?g:null;}
+function swissSuggest(n){return Math.max(1,Math.ceil(Math.log2(Math.max(2,n))));}
+function shuffle(a){a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;}
+function rrSchedule(fs){const p=shuffle(fs); if(p.length%2) p.push(null); const n=p.length, rounds=[];
+  for(let r=0;r<n-1;r++){const m=[]; let bye=null;
+    for(let i=0;i<n/2;i++){const a=p[i], b=p[n-1-i]; if(a&&b) m.push(r%2?[b,a]:[a,b]); else bye=a||b;}
+    rounds.push({m,bye}); p.splice(1,0,p.pop());}
+  return rounds;}
+/* Record per fighter from decided matches (fight-offs excluded). */
+function lgRecord(g,f){let w=0,l=0,run=0,best=0,byes=0; const opp=[];
+  g.rounds.forEach((R,ri)=>{if(R.bye===f){byes++; if(g.type==='swiss') w++; return;}
+    R.m.forEach((M,mi)=>{if(M[0]!==f&&M[1]!==f) return; const o=M[0]===f?M[1]:M[0]; opp.push(o); const win=g.w&&g.w[`r${ri}m${mi}`];
+      if(!win) return; if(win===f){w++;run++;best=Math.max(best,run);} else {l++;run=0;}});});
+  return {w,l,best,byes,opp};}
+function lgRoundDone(g,ri){const R=g.rounds[ri]; return !!R&&R.m.every((M,mi)=>g.w&&g.w[`r${ri}m${mi}`]);}
+function lgFinished(g){if(!g.rounds.length) return false; const all=g.rounds.every((R,ri)=>lgRoundDone(g,ri));
+  return g.type==='rr'?all:all&&g.rounds.length>=(g.nr||1);}
+/* Standings with fight-off order applied inside tied groups. Returns rows, top-3 places and any unresolved ties. */
+function lgStand(tid,d){const g=lgOf(tid,d); if(!g) return null; const fs=[...new Set(g.rounds.flatMap(R=>[...R.m.flat(),R.bye]).filter(Boolean))];
+  const rows=fs.map(f=>({f,...lgRecord(g,f)})).sort((a,b)=>b.w-a.w||a.l-b.l||fname(a.f).localeCompare(fname(b.f)));
+  const groups=[]; rows.forEach(r=>{const last=groups[groups.length-1]; if(last&&last.w===r.w&&last.l===r.l) last.fs.push(r.f); else groups.push({w:r.w,l:r.l,fs:[r.f]});});
+  const fin=lgFinished(g), order=[], ties=[]; let pos=0;
+  groups.forEach(G=>{const start=pos; pos+=G.fs.length;
+    if(G.fs.length>1&&start<3&&fin){const key=G.fs.slice().sort().join('|'), fo=(g.fo&&g.fo[key])||[], known=fo.filter(f=>G.fs.includes(f)), rest=G.fs.filter(f=>!known.includes(f));
+      if(rest.length>1) ties.push({key,fs:G.fs,known,rest,from:start+known.length});
+      order.push(...known,...rest);}
+    else order.push(...G.fs);});
+  const rank={}; order.forEach((f,i)=>rank[f]=i);
+  const resolved=i=>!ties.some(T=>i>=T.from&&i<T.from+T.rest.length);
+  const pl=[0,1,2].map(i=>fin&&order[i]&&resolved(i)?order[i]:null);
+  return {g,rows:rows.sort((a,b)=>rank[a.f]-rank[b.f]),pl,ties,fin};}
+function lgPlaces(tid,d){const s=lgStand(tid,d); return s?s.pl:[null,null,null];}
+function lgDone(tid,d){const s=lgStand(tid,d); return !!s&&s.fin&&s.ties.length===0;}
+/* Swiss pairing: sort by wins (random order within equal records from the draw), pair down avoiding rematches. */
+function swissPair(g,fs){const rec=Object.fromEntries(fs.map(f=>[f,lgRecord(g,f)])), seed=g.seedOrder||fs;
+  const sorted=fs.slice().sort((a,b)=>rec[b].w-rec[a].w||seed.indexOf(a)-seed.indexOf(b));
+  let bye=null, pool=sorted;
+  if(pool.length%2){const cand=pool.slice().reverse().find(f=>!rec[f].byes)||pool[pool.length-1]; bye=cand; pool=pool.filter(f=>f!==cand);}
+  const met=(a,b)=>rec[a].opp.includes(b);
+  const solve=(left)=>{if(!left.length) return []; const a=left[0];
+    for(let i=1;i<left.length;i++){const b=left[i]; if(met(a,b)) continue; const rest=solve(left.filter((_,j)=>j!==0&&j!==i)); if(rest) return [[a,b],...rest];}
+    return null;};
+  let m=solve(pool); if(!m){m=[]; for(let i=0;i<pool.length;i+=2) m.push([pool[i],pool[i+1]]);}
+  return {m,bye};}
+function lgCard(tid,d){
+  const fs=inDiv(tid,d.k), g=lgOf(tid,d.k), head=`<h2>${sw(d.k)}${esc(d.n)}</h2>`, sw_=tFormat(tByid(tid))==='swiss';
+  if(!g) return `<div class="panel bcard" style="${tc(d.k)}">${head}<p class="muted" style="margin:10px 0">${fs.length<2?'Needs at least two fighters signed up.':sw_?`${fs.length} fighters signed up. Swiss pairs fighters with the same record each round, without rematches when possible. Suggested: ${swissSuggest(fs.length)} rounds.`:`${fs.length} fighters signed up. Everyone fights everyone once: ${fs.length%2?fs.length:fs.length-1} rounds${fs.length%2?', one fighter rests each round':''}.`}</p>
+    ${fs.length>=2?`<div class="row" style="align-items:flex-end">${sw_?`<div class="field" style="flex:0 1 140px"><label for="lgN-${d.k}">Rounds</label><input id="lgN-${d.k}" type="number" min="1" max="20" value="${swissSuggest(fs.length)}"></div>`:''}<button class="btn sm" data-act="lgdraw" data-div="${d.k}">${sw_?'Pair round 1':'Draw schedule'}</button></div>`:''}</div>`;
+  const S_=lgStand(tid,d.k), R=g.rounds, last=R.length-1, canNext=sw_&&R.length<(g.nr||1)&&lgRoundDone(g,last);
+  const btn=(ri,mi,p)=>{const win=g.w&&g.w[`r${ri}m${mi}`], cls=win===p?'win':win?'lose':''; return `<button class="mrow ${cls}" data-act="lgwin" data-div="${d.k}" data-m="r${ri}m${mi}" data-f="${esc(p)}"><span class="nm">${esc(fname(p))}</span></button>`;};
+  const rounds=R.map((Rd,ri)=>`<div class="lground"><span class="lbl">Round ${ri+1}${lgRoundDone(g,ri)?' · done':''}</span><div class="lgm">${Rd.m.map((M,mi)=>`<div class="ematch">${btn(ri,mi,M[0])}${btn(ri,mi,M[1])}</div>`).join('')}</div>
+      ${Rd.bye?`<small class="muted">${esc(fname(Rd.bye))} has a bye${sw_?' (counts as a win)':' (rests this round)'}</small>`:''}</div>`).join('');
+  const table=`<div class="scroll"><table><thead><tr><th>#</th><th>Fighter</th><th class="n">W</th><th class="n">L</th><th class="n">Best run</th></tr></thead><tbody>${S_.rows.map((r,i)=>`<tr><td class="rank">${i+1}</td><td>${esc(fname(r.f))}</td><td class="n"><b>${r.w}</b></td><td class="n">${r.l}</td><td class="n">${r.best||'—'}</td></tr>`).join('')}</tbody></table></div>`;
+  const ties=S_.ties.map(T=>`<div class="banner" style="margin-top:10px"><span><b>Fight-off needed:</b> ${T.fs.map(f=>esc(fname(f))).join(', ')} are tied for ${ordinalN(T.from+1)} place. Tap the winner of the fight-off${T.rest.length>2?' (repeat until the order is settled)':''}.</span>
+      <span class="row" style="gap:6px">${T.rest.map(f=>`<button class="btn sm" data-act="lgfo" data-div="${d.k}" data-k="${esc(T.key)}" data-f="${esc(f)}">${esc(fname(f))}</button>`).join('')}</span></div>`).join('');
+  const foReset=g.fo&&Object.keys(g.fo).length?`<button class="btn sm ghost" data-act="lgforeset" data-div="${d.k}">Clear fight-off results</button>`:'';
+  const podium=`<div class="podium">${S_.pl.map((f,i)=>`<div class="pl"><span class="medal m${i+1}">${i+1}</span><span class="nm">${f?esc(fname(f)):'<span class="muted">To be decided</span>'}</span><span class="pts">${f?'+'+PLACE_PTS[i]:''}</span></div>`).join('')}</div>`;
+  const inG=new Set(R.flatMap(Rd=>[...Rd.m.flat(),Rd.bye]).filter(Boolean)), late=fs.filter(f=>!inG.has(f)).length, any=g.w&&Object.values(g.w).some(Boolean), k='lgredraw:'+d.k;
+  return `<div class="panel bcard" style="${tc(d.k)}">${head}
+    <p class="foot" style="margin:0 0 8px">${sw_?`Swiss · round ${R.length} of ${g.nr||1}`:`Round Robin · ${R.length} rounds`} · tap the winner of each bout.</p>
+    ${table}${ties}${podium}<div class="lgrounds">${rounds}</div>
+    ${late?`<p class="foot">${late} fighter${late===1?'':'s'} signed up after the draw.${sw_?' Swiss can’t add fighters after round 1; redraw to include them.':' Redraw to include them.'}</p>`:''}
+    <div class="row" style="margin-top:10px">${canNext?`<button class="btn sm" data-act="lgnext" data-div="${d.k}">Pair round ${R.length+1}</button>`:''}
+      ${sw_?`<div class="field" style="flex:0 1 150px"><label for="lgNR-${d.k}">Total rounds</label><input id="lgNR-${d.k}" data-lgnr="${d.k}" type="number" min="${R.length}" max="20" value="${g.nr||1}"></div>`:''}
+      ${foReset}<button class="btn sm ghost ${S.confirm===k?'armed':''}" data-act="lgdraw" data-div="${d.k}">${any?(S.confirm===k?'Tap again: clears all results':'Redraw'):'Redraw'}</button></div></div>`;
+}
+Object.assign(H,{
+  lgdraw:ds=>{const d=ds.div, fs=inDiv(S.tid,d); if(fs.length<2){toast('Needs at least two fighters.');return;}
+    const g=lgOf(S.tid,d); if(g&&g.w&&Object.values(g.w).some(Boolean)&&!arm('lgredraw:'+d)) return;
+    if(tFormat(T())==='swiss'){const nEl=$('#lgN-'+d), nr=Math.max(1,Math.min(20,parseInt(nEl&&nEl.value)||(g&&g.nr)||swissSuggest(fs.length)));
+      const base={type:'swiss',rounds:[],w:{},fo:{},nr,seedOrder:shuffle(fs),drawnAt:Date.now()}; const first=swissPair(base,fs); base.rounds=[first];
+      saveDiv(d,{lg:base}); toast(`${DIV[d].n}: round 1 paired, ${nr} rounds planned.`);}
+    else{const rounds=rrSchedule(fs); saveDiv(d,{lg:{type:'rr',rounds,w:{},fo:{},drawnAt:Date.now()}}); toast(`${DIV[d].n}: ${rounds.length} rounds scheduled.`);}},
+  lgwin:ds=>{const g=lgOf(S.tid,ds.div); if(!g) return; const W={...(g.w||{})}; W[ds.m]=W[ds.m]===ds.f?null:ds.f; saveDiv(ds.div,{lg:{...g,w:W}});},
+  lgnext:ds=>{const g=lgOf(S.tid,ds.div); if(!g) return; const fs=[...new Set(g.rounds.flatMap(R=>[...R.m.flat(),R.bye]).filter(Boolean))];
+    const next=swissPair(g,fs); saveDiv(ds.div,{lg:{...g,rounds:[...g.rounds,next]}}); toast(`Round ${g.rounds.length+1} paired.`);},
+  lgfo:ds=>{const g=lgOf(S.tid,ds.div); if(!g) return; const fo={...(g.fo||{})}; const cur=(fo[ds.k]||[]).slice(); if(!cur.includes(ds.f)) cur.push(ds.f);
+    const grp=ds.k.split('|'); if(cur.length===grp.length-1) cur.push(grp.find(f=>!cur.includes(f))); fo[ds.k]=cur; saveDiv(ds.div,{lg:{...g,fo}});},
+  lgforeset:ds=>{const g=lgOf(S.tid,ds.div); if(!g) return; saveDiv(ds.div,{lg:{...g,fo:{}}});},
+});
+['lgdraw','lgwin','lgnext','lgfo','lgforeset'].forEach(a=>{WRITE_ACTS&&WRITE_ACTS.add(a); typeof LOCK_ACTS!=='undefined'&&LOCK_ACTS.add(a);});
+document.addEventListener('change',e=>{const t=e.target; if(t.dataset&&t.dataset.lgnr){const g=lgOf(S.tid,t.dataset.lgnr); if(!g) return; const n=Math.max(g.rounds.length,Math.min(20,parseInt(t.value)||g.nr||1)); saveDiv(t.dataset.lgnr,{lg:{...g,nr:n}});}});
+
 /* ---------- Events, Home page and registration QR codes ----------
    events/{id} {name, date, endDate, park, kingdom, at, by} are created by marshals first; each
    tournament (fighting, Dragonmaster, Bards) picks one as tournaments.eventId, so a Dragonmaster and a
@@ -4845,7 +4995,8 @@ const evById=id=>S.events.find(e=>e.id===id);
 const isoDay=d=>d.toLocaleDateString('en-CA');
 const cutoff=()=>{const d=new Date(); d.setDate(d.getDate()-7); return isoDay(d);};
 const tActive=t=>t.status!=='final'&&(t.date||'9999')>=cutoff();
-const KIND_N={combat:'War',arts:'Dragonmaster',bards:'Battle of the Bards'};
+const KIND_N={combat:'War',morrigan:'Morrigan',arts:'Dragonmaster',bards:'Battle of the Bards'};
+const kindKey=t=>t&&t.variant==='morrigan'?'morrigan':kindOf(t);
 const kindOf=t=>isArts(t)?'arts':isBards(t)?'bards':'combat';
 const joinTab={combat:'signups',arts:'entries',bards:'bbenter'};
 const joinUrl=t=>{const u=new URL(location.origin+location.pathname); u.searchParams.set('t',t.id); u.searchParams.set('tab',joinTab[kindOf(t)]); u.searchParams.set('join','1'); return u.toString();};
@@ -4869,9 +5020,9 @@ function renderHome(){watchDash(); const el=$('#homeView'); if(!$('#hJoin')) el.
   const mk=!!S.mdoc;
   $('#hTop').innerHTML=`<div class="hero"><div><h2 style="margin:0">Events</h2><p class="muted" style="margin:4px 0 0">Join a tournament, see results, or open your own record.</p></div>
     <div class="row" style="gap:8px">${S.user?'<button class="btn" data-act="me">My record</button>':'<button class="btn" data-act="signin">Sign in</button><button class="btn ghost" data-act="me">My record</button>'}</div></div>`;
-  const tRow=t=>`<div class="evt"><span>${kdot(t)} <button class="linkish" data-act="goT" data-t="${esc(t.id)}"><b>${esc(t.name)}</b></button> <small class="muted">${esc(KIND_N[kindOf(t)])}${t.date?' · '+esc(shortDate(t.date)):''}</small> ${tStatus(t)}</span>
+  const tRow=t=>`<div class="evt"><span>${kdot(t)} <button class="linkish" data-act="goT" data-t="${esc(t.id)}"><b>${esc(t.name)}</b></button> <small class="muted">${esc(KIND_N[kindKey(t)])}${t.date?' · '+esc(shortDate(t.date)):''}</small> ${tStatus(t)}</span>
       <span class="row" style="gap:6px">${t.status!=='final'&&t.signupsOpen!==false?`<a class="btn sm" href="${esc(joinUrl(t))}" data-act="goJoin" data-t="${esc(t.id)}">Join</a>`:''}<button class="btn sm ghost" data-act="qr" data-t="${esc(t.id)}" aria-label="Registration QR code for ${esc(t.name)}">QR</button></span></div>`;
-  const addBtns=g=>mk&&g.ev.id&&allowedKingdoms().includes(g.ev.kingdom||'westmarch')?`<div class="row m-any" style="gap:6px;margin-top:6px"><small class="muted">Add a tournament:</small>${['combat','arts','bards'].map(k=>`<button class="btn sm ghost" data-act="evAdd" data-ev="${esc(g.ev.id)}" data-kind="${k}">${kdotK(k)} ${KIND_N[k]}</button>`).join('')}${!g.ts.length?(()=>{const k='evdel:'+g.ev.id;return `<button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="evDel" data-ev="${esc(g.ev.id)}">${S.confirm===k?'Tap again to delete':'Delete event'}</button>`;})():''}</div>`:'';
+  const addBtns=g=>mk&&g.ev.id&&allowedKingdoms().includes(g.ev.kingdom||'westmarch')?`<div class="row m-any" style="gap:6px;margin-top:6px"><small class="muted">Add a tournament:</small>${['combat','morrigan','arts','bards'].map(k=>`<button class="btn sm ghost" data-act="evAdd" data-ev="${esc(g.ev.id)}" data-kind="${k}">${kdotK(k)} ${KIND_N[k]}</button>`).join('')}${!g.ts.length?(()=>{const k='evdel:'+g.ev.id;return `<button class="btn sm danger ${S.confirm===k?'armed':''}" data-act="evDel" data-ev="${esc(g.ev.id)}">${S.confirm===k?'Tap again to delete':'Delete event'}</button>`;})():''}</div>`:'';
   $('#hJoin').innerHTML=`<div class="panel"><h2>Join an Event</h2>${act.length?`<div class="scroll"><table class="evtable"><thead><tr><th>Event</th><th>Dates</th><th>Tournaments</th></tr></thead><tbody>
       ${act.map(g=>`<tr><td><b>${esc(g.ev.name)}</b><small class="muted" style="display:block">${esc(g.ev.park||'')}${S.kf==='all'&&KINGDOMS[g.ev.kingdom]?' · '+esc(KINGDOMS[g.ev.kingdom].n.replace('Kingdom of ','')):''}</small></td><td class="num" style="white-space:nowrap">${esc(dateRange(g.ev.date,g.ev.endDate))}</td>
         <td>${g.ts.length?g.ts.map(tRow).join(''):'<span class="muted">Tournaments coming soon</span>'}${addBtns(g)}</td></tr>`).join('')}</tbody></table></div>`
@@ -4890,10 +5041,10 @@ function renderHome(){watchDash(); const el=$('#homeView'); if(!$('#hJoin')) el.
   const shown=past.slice(0,S.pastN);
   $('#hPast').innerHTML=`<div class="panel"><h2>Past events</h2>${shown.length?`<div class="scroll"><table class="evtable"><thead><tr><th>Event</th><th>Dates</th><th>Results</th></tr></thead><tbody>
       ${shown.map(g=>`<tr><td><b>${esc(g.ev.name)}</b><small class="muted" style="display:block">${esc(g.ev.park||'')}</small></td><td class="num" style="white-space:nowrap">${esc(dateRange(g.ev.date||g.date,g.ev.endDate))}</td>
-        <td>${g.ts.map(t=>{const w=winnersOf(t);return `<div class="evt"><span>${kdot(t)} <button class="linkish" data-act="goT" data-t="${esc(t.id)}"><b>${esc(t.name)}</b></button> <small class="muted">${esc(KIND_N[kindOf(t)])}</small></span><span>${w.length?w.map(x=>`<span class="rchip">🏆 ${esc(x)}</span>`).join(' '):'<span class="muted">No winners recorded</span>'}</span></div>`;}).join('')}</td></tr>`).join('')}</tbody></table></div>
+        <td>${g.ts.map(t=>{const w=winnersOf(t);return `<div class="evt"><span>${kdot(t)} <button class="linkish" data-act="goT" data-t="${esc(t.id)}"><b>${esc(t.name)}</b></button> <small class="muted">${esc(KIND_N[kindKey(t)])}</small></span><span>${w.length?w.map(x=>`<span class="rchip">🏆 ${esc(x)}</span>`).join(' '):'<span class="muted">No winners recorded</span>'}</span></div>`;}).join('')}</td></tr>`).join('')}</tbody></table></div>
       ${past.length>S.pastN?'<button class="btn ghost" data-act="pastMore" style="margin-top:10px">Show more</button>':''}`:'<p class="none">No past events yet.</p>'}</div>`;
 }
-const kdotK=k=>({combat:'🟡',arts:'🟢',bards:'🔵'})[k];
+const kdotK=k=>({combat:'🟡',morrigan:'🟡',arts:'🟢',bards:'🔵'})[k];
 document.addEventListener('submit',async e=>{if(e.target.id!=='evForm')return; e.preventDefault();
   const name=$('#evName').value.trim(), date=$('#evDate').value, end=$('#evEnd').value, kingdom=$('#evKingdom').value, park=$('#evPark').value.trim();
   if(!name||!date){toast('Give the event a name and start date.');return;} if(end&&end<date){toast('The end date is before the start date.');return;}
@@ -4910,7 +5061,7 @@ document.addEventListener('change',e=>{const t=e.target;
    a tournament of another type (e.g. a Dragonmaster when you're creating War) recommended at the top. */
 function fillEventSel(pre){const sel=$('#tEvent'); if(!sel) return; const k=$('#tKingdom').value, kind=$('#tKind')?$('#tKind').value:'combat', keep=pre!==undefined?pre:sel.value;
   const evs=S.events.filter(ev=>(ev.kingdom||'westmarch')===k&&(ev.endDate||ev.date||'9999')>=cutoff());
-  const other=ev=>S.tournaments.filter(t=>t.eventId===ev.id&&kindOf(t)!==kind).map(t=>KIND_N[kindOf(t)]);
+  const other=ev=>S.tournaments.filter(t=>t.eventId===ev.id&&kindKey(t)!==kind).map(t=>KIND_N[kindKey(t)]);
   const rec=evs.filter(ev=>other(ev).length), rest=evs.filter(ev=>!other(ev).length);
   sel.innerHTML=`<option value="">No event</option>${rec.length?`<optgroup label="Recommended: already has a tournament">${rec.map(ev=>`<option value="${esc(ev.id)}">${esc(ev.name)} · ${esc(shortDate(ev.date))} · has ${esc([...new Set(other(ev))].join(', '))}</option>`).join('')}</optgroup>`:''}${rest.length?`<optgroup label="Events">${rest.map(ev=>`<option value="${esc(ev.id)}">${esc(ev.name)} · ${esc(shortDate(ev.date))}</option>`).join('')}</optgroup>`:''}`;
   if(keep&&evs.some(ev=>ev.id===keep)) sel.value=keep; else if(!keep&&rec.length===1&&pre===undefined) sel.value='';}
@@ -4922,7 +5073,7 @@ function renderQr(){let m=$('#qrModal'); const t=S.qrOpen&&tByid(S.qrOpen);
   if(!m){m=document.createElement('div'); m.id='qrModal'; m.className='qrmodal'; document.body.appendChild(m);} m.dataset.k=key;
   const q=qrSvg(url), ev=t.eventId&&evById(t.eventId);
   m.innerHTML=`<div class="qrcard" role="dialog" aria-modal="true" aria-label="Registration QR code"><div class="eyebrow">${esc(ev?ev.name:KINGDOMS[tKingdom(t)].n)}</div><h2 style="margin:4px 0">${esc(t.name)}</h2>
-    <p class="muted" style="margin:0 0 10px">${kdot(t)} ${esc(KIND_N[kindOf(t)])}${t.date?' · '+esc(longDate(t.date)):''} · Scan to register</p>
+    <p class="muted" style="margin:0 0 10px">${kdot(t)} ${esc(KIND_N[kindKey(t)])}${t.date?' · '+esc(longDate(t.date)):''} · Scan to register</p>
     <div class="qrimg">${q.svg}</div><input class="qrurl" readonly value="${esc(url)}" aria-label="Registration link">
     <div class="row noprint" style="gap:8px;justify-content:center;margin-top:10px"><button class="btn sm" data-act="qrCopy">Copy link</button><a class="btn sm ghost" download="${esc(t.name.replace(/[^\w -]+/g,'').trim()||'tournament')}-qr.gif" href="${q.png}">Download image</a><button class="btn sm ghost" data-act="qrPrint">Print</button><button class="btn sm ghost" data-act="qrClose">Close</button></div></div>`;}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.qrOpen){S.qrOpen=null;renderQr();}});
@@ -4940,7 +5091,7 @@ Object.assign(H2,{
     const k=ev.kingdom||'westmarch'; if([...$('#tKingdom').options].some(o=>o.value===k)){$('#tKingdom').value=k; fillParks(k);}
     if($('#tKind')){$('#tKind').value=ds.kind; window.syncKind&&window.syncKind();}
     fillEventSel(ev.id); $('#tEvent').value=ev.id; if(ev.date)$('#tDate').value=ev.date; if(ev.park){$('#tPark').value=ev.park; const l=parkLevel(ev.park,k); if(l)$('#tLevel').value=l;}
-    $('#tName').value=`${ev.name} ${ds.kind==='arts'?'Dragonmaster':ds.kind==='bards'?'Battle of the Bards':'Tournament'}`;
+    $('#tName').value=`${ev.name} ${ds.kind==='arts'?'Dragonmaster':ds.kind==='bards'?'Battle of the Bards':ds.kind==='morrigan'?'Morrigan':'Tournament'}`;
     render(); $('#newT').scrollIntoView({behavior:'smooth',block:'start'});},
   evDel:async ds=>{if(!arm('evdel:'+ds.ev))return; if(S.tournaments.some(t=>t.eventId===ds.ev)){toast('Move or delete its tournaments first.');return;} await w(()=>S.db.doc('events/'+ds.ev).delete());},
 });
@@ -4963,11 +5114,11 @@ body:not(.anymarshal) .m-any{display:none!important}
 })();
 /* Event line under the tournament heading: which event it belongs to, a marshal picker to link it,
    and the registration QR button. */
-function tEventLine(){const t=T(); if(!t||S.view) return; const tm=$('#tmeta'); if(!tm) return; const ev=t.eventId&&evById(t.eventId);
+function tEventLine(){const t=T(); {const n=$('#rqMorr'); if(n) n.hidden=!(t&&t.variant==='morrigan');} if(!t||S.view) return; const tm=$('#tmeta'); if(!tm) return; const ev=t.eventId&&evById(t.eventId);
   const can=S.isMarshal, k=tKingdom(t);
   const evs=S.events.filter(x=>(x.kingdom||'westmarch')===k);
   const pick=can?`<span class="m-only">Event <select data-tevent aria-label="Event for this tournament" style="max-width:240px"><option value="">No event</option>${evs.map(x=>`<option value="${esc(x.id)}" ${x.id===t.eventId?'selected':''}>${esc(x.name)} · ${esc(shortDate(x.date))}</option>`).join('')}</select></span>`:'';
-  tm.insertAdjacentHTML('beforeend',`${ev&&!can?`<span>Part of <button class="linkish" data-act="home"><b>${esc(ev.name)}</b></button></span>`:''}${pick}<span><button class="btn sm ghost" data-act="qr" data-t="${esc(t.id)}">Registration QR</button></span>`);}
+  tm.insertAdjacentHTML('beforeend',`${t.variant==='morrigan'?'<span class="rchip" style="border-color:var(--t-open)"><b>Morrigan</b> · open to women and non-male fighters</span>':''}${ev&&!can?`<span>Part of <button class="linkish" data-act="home"><b>${esc(ev.name)}</b></button></span>`:''}${pick}<span><button class="btn sm ghost" data-act="qr" data-t="${esc(t.id)}">Registration QR</button></span>`);}
 function doJoin(){if(!S.join||S.view||!T()) return; const id={combat:'rqForm',arts:'aeForm',bards:'bbForm'}[kindOf(T())]; const f=id&&document.getElementById(id);
   if(f){S.join=false; setTimeout(()=>f.scrollIntoView({behavior:'smooth',block:'start'}),50);} }
 
@@ -4983,6 +5134,8 @@ render=function(){
   renderQr(); renderAuth(); gate();
 };
 
+
+(function(){const st=document.createElement('style'); st.textContent='.thsort{all:unset;cursor:pointer;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;white-space:nowrap}.thsort:hover,.thsort.on{color:var(--ink)}.thsort:focus-visible{outline:2px solid var(--or);outline-offset:2px;border-radius:3px}'; document.head.appendChild(st);})();
 </script>
 </body>
 </html>

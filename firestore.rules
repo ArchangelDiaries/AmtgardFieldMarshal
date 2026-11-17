@@ -54,7 +54,8 @@ service cloud.firestore {
     }
     function validScore(id, d) {
       return isJudge(d.tid)
-        && d.keys().hasOnly(['tid', 'eid', 'judge', 'score', 'feedback', 'at'])
+        && d.keys().hasOnly(['tid', 'eid', 'judge', 'score', 'feedback', 'at', 'by', 'locked'])
+        && get(/databases/$(database)/documents/tournaments/$(d.tid)).data.get('as', {}).get('jlock', false) != true
         && d.judge == myEmail()
         && id == d.eid + '__' + myEmail()
         && d.score is number
@@ -68,7 +69,7 @@ service cloud.firestore {
     // without their phone). The score is filed under that judge, stamped with the marshal's email.
     function validProxyScore(id, d) {
       return isMarshalOfT(d.tid)
-        && d.keys().hasOnly(['tid', 'eid', 'judge', 'score', 'feedback', 'at', 'by'])
+        && d.keys().hasOnly(['tid', 'eid', 'judge', 'score', 'feedback', 'at', 'by', 'locked'])
         && d.judge is string && d.judge.size() > 0
         && exists(/databases/$(database)/documents/judges/$(d.tid + '__' + d.judge))
         && id == d.eid + '__' + d.judge
@@ -181,6 +182,7 @@ service cloud.firestore {
       // A marshal can remove any score; a judge can remove their own until the event is finalized.
       allow delete: if isMarshalOfT(resource.data.tid)
         || (isJudge(resource.data.tid) && resource.data.judge == myEmail()
+            && get(/databases/$(database)/documents/tournaments/$(resource.data.tid)).data.get('as', {}).get('jlock', false) != true
             && get(/databases/$(database)/documents/tournaments/$(resource.data.tid)).data.get('status', 'open') != 'final');
     }
     // Public judged averages (no individual scores).
